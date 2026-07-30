@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}QR نامعتبر | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-scan-required">
+    <div>
+        <div class="cl-scan-icon">⚠️</div>
+        <h1 style="color:var(--navy); font-size:22px;">این QR معتبر نیست</h1>
+        <p style="color:#8CA0B3; max-width:420px; margin:14px auto 0; line-height:2;">
+            این کد QR باطل شده یا نامعتبر است. لطفاً با پرسنل بخش تماس بگیرید یا از یک تابلوی دیگر اسکن کنید.
+        </p>
+    </div>
+</div>
+{% endblock %}

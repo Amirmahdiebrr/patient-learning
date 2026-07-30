@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}مسیر آموزشی شما | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container">
+
+    <div class="cl-card">
+        <h1>مسیر آموزشی شما</h1>
+        <p class="cl-sub">{{ hospital.name }} — بخش {{ department.name }}</p>
+
+        {% if lessons|length == 0 %}
+        <p style="color:#8CA0B3;">فعلاً محتوایی برای این مرحله ثبت نشده است.</p>
+        {% else %}
+        <div class="cl-lesson-list">
+            {% for lesson in lessons %}
+            <div class="cl-lesson-item">
+                <h3>{{ lesson.title }}</h3>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="cl-chat-box" id="assistant-box">
+        <div style="padding:18px 24px; border-bottom:1px solid var(--line); font-weight:700; color:var(--navy);">
+            💬 دستیار آموزشی — سوالات عمومی خود را اینجا بپرسید
+        </div>
+        <div class="cl-chat-messages" id="assistant-messages"></div>
+        <form class="cl-chat-input-row" id="assistant-form">
+            <input type="text" id="assistant-input" class="cl-chat-input" placeholder="مثلاً: بعد از عمل چه زمانی می‌توانم غذا بخورم؟" autocomplete="off">
+            <button type="submit" class="cl-chat-send">ارسال</button>
+        </form>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const messagesEl = document.getElementById("assistant-messages");
+    const form = document.getElementById("assistant-form");
+    const input = document.getElementById("assistant-input");
+    let conversation = [];
+
+    function addMessage(role, text) {
+        const bubble = document.createElement("div");
+        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
+        bubble.textContent = text;
+        messagesEl.appendChild(bubble);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+
+        addMessage("user", question);
+        conversation.push({ role: "user", content: question });
+        input.value = "";
+
+        try {
+            const res = await fetch("/assistant/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: question, history: conversation }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                addMessage("ai", data.error || "خطایی رخ داد.");
+            } else {
+                addMessage("ai", data.answer);
+                conversation.push({ role: "assistant", content: data.answer });
+            }
+        } catch (err) {
+            addMessage("ai", "ارتباط با سرور برقرار نشد.");
+        }
+    });
+})();
+</script>
+{% endblock %}

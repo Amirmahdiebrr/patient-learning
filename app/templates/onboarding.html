@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}تکمیل اطلاعات | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container">
+    <div class="cl-card">
+        <h1>خوش آمدید به {{ hospital.name }} — بخش {{ department.name }}</h1>
+        <p class="cl-sub">
+            برای اینکه محتوای آموزشی متناسب با شرایط شما نمایش داده شود، لطفاً چند سوال کوتاه را پاسخ دهید.
+            هیچ اطلاعات هویتی (نام، کد ملی، شماره تماس) از شما پرسیده نمی‌شود.
+        </p>
+
+        <form method="post" action="/onboarding">
+
+            <div class="cl-field">
+                <label for="disease_id">بیماری / علت مراجعه</label>
+                <select name="disease_id" id="disease_id">
+                    <option value="">— انتخاب کنید —</option>
+                    {% for d in diseases %}
+                    <option value="{{ d.id }}">{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="cl-field">
+                <label for="treatment_id">نوع درمان / عمل (در صورت مشخص بودن)</label>
+                <select name="treatment_id" id="treatment_id">
+                    <option value="">— انتخاب کنید —</option>
+                    {% for t in treatments %}
+                    <option value="{{ t.id }}">{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="cl-field">
+                <label>آیا قرار است عمل جراحی داشته باشید؟</label>
+                <div class="cl-radio-group">
+                    <label><input type="radio" name="has_surgery" value="yes"> بله</label>
+                    <label><input type="radio" name="has_surgery" value="no"> خیر</label>
+                </div>
+            </div>
+
+            <div class="cl-field">
+                <label for="age">سن</label>
+                <input type="number" name="age" id="age" min="0" max="120">
+            </div>
+
+            <div class="cl-field">
+                <label for="gender">جنسیت</label>
+                <select name="gender" id="gender">
+                    <option value="">— انتخاب کنید —</option>
+                    <option value="female">زن</option>
+                    <option value="male">مرد</option>
+                    <option value="other">سایر</option>
+                </select>
+            </div>
+
+            <button type="submit" class="cl-btn">شروع مسیر آموزشی</button>
+
+        </form>
+    </div>
+</div>
+{% endblock %}
