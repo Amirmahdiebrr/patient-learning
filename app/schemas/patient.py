@@ -1,7 +1,8 @@
 """
 app/schemas/patient.py
 
-Pydantic v2 DTOs for the patient-facing onboarding + journey flow.
+Pydantic v2 DTOs for the patient-facing onboarding + journey flow,
+plus lesson progress/favorite/quiz-attempt actions.
 """
 
 import uuid
@@ -39,3 +40,19 @@ class OnboardingOptionsResponse(BaseModel):
 class PatientAssistantAskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     history: list[dict] = Field(default_factory=list)
+
+
+class LessonProgressUpdateRequest(BaseModel):
+    status: str  # "not_started" | "in_progress" | "completed"
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        allowed = {"not_started", "in_progress", "completed"}
+        if value not in allowed:
+            raise ValueError(f"status باید یکی از این مقادیر باشد: {', '.join(allowed)}")
+        return value
+
+
+class QuizAttemptRequest(BaseModel):
+    option_id: uuid.UUID

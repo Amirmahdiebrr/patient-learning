@@ -57,7 +57,12 @@ async def qr_entry(request: Request, token: str, db: Session = Depends(get_db)):
         .first()
     )
 
-    destination = "/onboarding" if not journey or not journey.onboarding_completed_at else "/home"
+    if not journey:
+        destination = "/welcome"
+    elif not journey.onboarding_completed_at:
+        destination = "/welcome" if journey.current_stage.value == "welcome" else "/onboarding"
+    else:
+        destination = "/home"
 
     response = RedirectResponse(url=destination, status_code=303)
 

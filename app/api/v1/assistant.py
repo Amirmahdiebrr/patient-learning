@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import PatientJourneyProfile
-from app.api.deps import get_access_context, get_active_journey
+from app.api.deps import AccessContext, get_access_context, get_active_journey
 from app.schemas.patient import PatientAssistantAskRequest
 from app.services.patient_assistant_service import PatientAssistantService
 from app.infrastructure.external.ai_provider import AIProviderError
@@ -27,14 +27,22 @@ assistant_service = PatientAssistantService()
 async def ask_assistant(
     payload: PatientAssistantAskRequest,
     journey: PatientJourneyProfile = Depends(get_active_journey),
-    _context=Depends(get_access_context),
+    context: AccessContext = Depends(get_access_context),
     db: Session = Depends(get_db),
 ):
     if not journey.onboarding_completed_at:
         return JSONResponse({"error": "ابتدا باید پرسش‌نامه‌ی ورود را تکمیل کنید."}, status_code=400)
 
     try:
-        answer = await assistant_service.ask(db, journey, payload.question, payload.history)
+        answer = await assistant_service.ask(
+            db,
+            journey,
+            payload.question,
+            payload.history,
+            hospital_id=context.qr_access_point.hospital_id,
+            department_id=context.qr_access_point.department_id,
+            department_type_id=context.qr_access_point.department.department_type_id,
+        )
     except AIProviderError as exc:
         return JSONResponse({"error": str(exc)}, status_code=503)
     except Exception as exc:

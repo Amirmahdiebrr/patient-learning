@@ -9,6 +9,13 @@ Design notes:
   per-treatment. Every treatment reuses the same stage vocabulary.
 - EducationSection.treatment_id is nullable: some sections are
   general (hospital-wide) education, not tied to a specific treatment.
+- EducationSection.department_type_id is nullable and links to the
+  standard department taxonomy (StandardDepartmentType), NOT to a
+  specific hospital's Department row. This makes content a shared
+  library: build it once per department type (e.g. "Orthopedics"),
+  and it automatically applies to every hospital that has a
+  Department of that type - no per-hospital linking needed.
+  NULL means "general education shown regardless of department type".
 """
 
 import uuid
@@ -101,6 +108,9 @@ class EducationSection(Base):
 
     journey_stage_id = Column(UUID(as_uuid=True), ForeignKey("journey_stages.id"), nullable=False, index=True)
     treatment_id = Column(UUID(as_uuid=True), ForeignKey("treatments.id"), nullable=True, index=True)
+    department_type_id = Column(
+        UUID(as_uuid=True), ForeignKey("standard_department_types.id"), nullable=True, index=True
+    )
 
     title = Column(String(255), nullable=False)
     display_order = Column(Integer, nullable=False, default=0)
@@ -111,6 +121,7 @@ class EducationSection(Base):
 
     journey_stage = relationship("JourneyStage", back_populates="sections")
     treatment = relationship("Treatment", back_populates="sections")
+    department_type = relationship("StandardDepartmentType", back_populates="education_sections")
     lessons = relationship("Lesson", back_populates="section", order_by="Lesson.display_order")
 
 
@@ -129,8 +140,8 @@ class Lesson(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     section = relationship("EducationSection", back_populates="lessons")
-    media_assets = relationship("MediaAsset", back_populates="lesson", order_by="MediaAsset.display_order")
-    quiz_questions = relationship("QuizQuestion", back_populates="lesson")
+    media_assets = relationship("MediaAsset", back_populates="lesson", order_by="MediaAsset.display_order", cascade="all, delete-orphan")
+    quiz_questions = relationship("QuizQuestion", back_populates="lesson", cascade="all, delete-orphan")
     targeting_rules = relationship("ContentTargetingRule", back_populates="lesson")
 
 
@@ -161,7 +172,7 @@ class QuizQuestion(Base):
     display_order = Column(Integer, nullable=False, default=0)
 
     lesson = relationship("Lesson", back_populates="quiz_questions")
-    options = relationship("QuizOption", back_populates="question", order_by="QuizOption.display_order")
+    options = relationship("QuizOption", back_populates="question", order_by="QuizOption.display_order", cascade="all, delete-orphan")
 
 
 class QuizOption(Base):
@@ -179,10 +190,14 @@ class QuizOption(Base):
 
 class ContentTargetingRule(Base):
     """
-    Flexible targeting: a lesson can have MULTIPLE rules (many rules
-    per lesson, shared across diseases/departments as confirmed).
-    A lesson is shown to a patient context if AT LEAST ONE of its
-    rules matches (all non-null fields in that rule must match).
+    Fine-grained OPTIONAL override on top of the department_type match:
+    a lesson can have MULTIPLE rules for extra filtering by age/gender/
+    disease/treatment, or to further restrict to one specific hospital
+    or one specific Department row (rarely needed now that
+    EducationSection.department_type_id handles the common case).
+    A lesson is shown if AT LEAST ONE of its rules matches; a lesson
+    with zero rules is shown to everyone matching the structural
+    (journey_stage + department_type) layer.
     """
     __tablename__ = "content_targeting_rules"
 

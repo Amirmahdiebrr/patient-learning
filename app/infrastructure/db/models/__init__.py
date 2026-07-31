@@ -11,6 +11,8 @@ from app.infrastructure.db.models.access import (
     QRAccessPoint,
     QRAccessPointStatus,
     PatientAccessProfile,
+    StandardDepartmentType,
+    DepartmentMacroCategory,
 )
 from app.infrastructure.db.models.content import (
     Disease,
@@ -46,6 +48,8 @@ __all__ = [
     "QRAccessPoint",
     "QRAccessPointStatus",
     "PatientAccessProfile",
+    "StandardDepartmentType",
+    "DepartmentMacroCategory",
     "Disease",
     "Treatment",
     "JourneyStage",

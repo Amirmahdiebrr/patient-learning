@@ -2,7 +2,9 @@
 app/infrastructure/db/models/access.py
 
 Access-gate domain models: Hospital, Department, QRAccessPoint,
-PatientAccessProfile.
+PatientAccessProfile, plus the standardized department taxonomy
+(StandardDepartmentType) used to classify departments consistently
+across hospitals.
 
 Design notes:
 - QRAccessPoint.access_token is the only secret embedded in a printed
@@ -10,6 +12,14 @@ Design notes:
 - PatientAccessProfile has NO personally identifiable information.
   It exists purely so per-device progress/favorites/quiz-attempts can
   be tracked without real patient authentication.
+- StandardDepartmentType is a fixed lookup (seeded once via
+  scripts/seed_department_types.py) representing the standard Iranian
+  hospital department taxonomy. Department.department_type_id links a
+  hospital's actual department to this type - this is what lets a
+  hospital "attach" a shared content library (built once per
+  department type via EducationSection.department_type_id) simply by
+  choosing a type when creating the department, with no per-hospital
+  content re-linking needed.
 """
 
 import uuid
@@ -17,7 +27,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, ForeignKey, Enum, Text,
+    Column, String, Boolean, DateTime, ForeignKey, Enum, Text, Integer,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -28,6 +38,38 @@ from app.infrastructure.db.session import Base
 class QRAccessPointStatus(str, PyEnum):
     ACTIVE = "active"
     REVOKED = "revoked"
+
+
+class DepartmentMacroCategory(str, PyEnum):
+    SURGICAL = "surgical"
+    MEDICAL = "medical"
+    CRITICAL_CARE = "critical_care"
+    OBSTETRICS_GYNECOLOGY = "obstetrics_gynecology"
+    PEDIATRICS = "pediatrics"
+    OUTPATIENT_PROCEDURES = "outpatient_procedures"
+
+
+class StandardDepartmentType(Base):
+    """
+    Fixed lookup table, seeded once via scripts/seed_department_types.py.
+    Represents the standard Iranian hospital department taxonomy
+    (macro category -> specific department). This is the shared
+    "content library key": EducationSection rows link to it directly,
+    and Department rows link to it to say "this hospital's department
+    is of this type" - matching the two automatically attaches the
+    right content to the right hospital department, with zero manual
+    per-hospital linking.
+    """
+    __tablename__ = "standard_department_types"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    macro_category = Column(Enum(DepartmentMacroCategory), nullable=False, index=True)
+    code = Column(String(100), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    departments = relationship("Department", back_populates="department_type")
+    education_sections = relationship("EducationSection", back_populates="department_type")
 
 
 class Hospital(Base):
@@ -50,6 +92,9 @@ class Department(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     hospital_id = Column(UUID(as_uuid=True), ForeignKey("hospitals.id"), nullable=False, index=True)
+    department_type_id = Column(
+        UUID(as_uuid=True), ForeignKey("standard_department_types.id"), nullable=True, index=True
+    )
 
     name = Column(String(255), nullable=False)
     slug = Column(String(255), nullable=False, index=True)
@@ -59,6 +104,7 @@ class Department(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     hospital = relationship("Hospital", back_populates="departments")
+    department_type = relationship("StandardDepartmentType", back_populates="departments")
     qr_access_points = relationship("QRAccessPoint", back_populates="department")
 
 

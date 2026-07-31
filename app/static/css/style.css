@@ -4,6 +4,7 @@
     --accent:#0FB6A8;
     --accent-2:#6C5CE7;
     --warn:#FF6B6B;
+    --success:#22B07D;
     --white:#FFFFFF;
     --text:#4C5776;
     --line:rgba(10,19,48,.09);
@@ -134,6 +135,12 @@ body{
     box-shadow:0 16px 34px rgba(15,182,168,.28);
 }
 
+.cl-btn:disabled{
+    opacity:.6;
+    cursor:default;
+    box-shadow:none;
+}
+
 .cl-lesson-list{
     display:flex;
     flex-direction:column;
@@ -146,6 +153,11 @@ body{
     border-radius:var(--radius-md);
     padding:18px 22px;
     box-shadow:var(--shadow-sm);
+    transition:transform .15s ease;
+}
+
+.cl-lesson-item:hover{
+    transform:translateY(-2px);
 }
 
 .cl-lesson-item h3{
@@ -166,6 +178,118 @@ body{
 .cl-scan-icon{
     font-size:52px;
     margin-bottom:18px;
+}
+
+/* ==== Lesson detail page ==== */
+
+.cl-lesson-header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    margin-bottom:20px;
+}
+
+.cl-lesson-header h1{
+    margin:0;
+}
+
+.cl-fav-btn{
+    flex-shrink:0;
+    border:1px solid var(--line);
+    background:var(--sky);
+    color:var(--navy);
+    border-radius:var(--radius-sm);
+    padding:10px 16px;
+    font-family:inherit;
+    font-size:13.5px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+}
+
+.cl-fav-btn-active{
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    color:white;
+    border-color:transparent;
+}
+
+.cl-media-list{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    margin-bottom:22px;
+}
+
+.cl-lesson-body{
+    line-height:2.1;
+    color:var(--text);
+    font-size:15px;
+}
+
+.cl-quiz-question{
+    margin-bottom:28px;
+    padding-bottom:24px;
+    border-bottom:1px solid var(--line);
+}
+
+.cl-quiz-question:last-child{
+    border-bottom:none;
+    margin-bottom:0;
+    padding-bottom:0;
+}
+
+.cl-quiz-text{
+    font-weight:700;
+    color:var(--navy);
+    margin:0 0 14px;
+    font-size:15px;
+}
+
+.cl-quiz-options{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.cl-quiz-option{
+    text-align:right;
+    border:1px solid var(--line);
+    background:var(--sky);
+    color:var(--navy);
+    border-radius:var(--radius-sm);
+    padding:12px 16px;
+    font-family:inherit;
+    font-size:14px;
+    cursor:pointer;
+}
+
+.cl-quiz-option:disabled{
+    cursor:default;
+}
+
+.cl-quiz-option-correct{
+    background:rgba(34,176,125,.15) !important;
+    border-color:var(--success) !important;
+}
+
+.cl-quiz-option-wrong{
+    background:rgba(255,107,107,.15) !important;
+    border-color:var(--warn) !important;
+}
+
+.cl-quiz-result{
+    margin:12px 0 0;
+    font-size:13.5px;
+    font-weight:700;
+}
+
+.cl-quiz-result-correct{
+    color:var(--success);
+}
+
+.cl-quiz-result-wrong{
+    color:var(--warn);
 }
 
 /* ==== Patient AI Assistant chat widget ==== */
@@ -238,4 +362,187 @@ body{
     color:white;
     font-weight:700;
     cursor:pointer;
+}
+
+/* ==== Admin panel ==== */
+
+.cl-admin-container{
+    max-width:920px;
+}
+
+.cl-admin-card{
+    max-width:100%;
+}
+
+.cl-admin-h2{
+    color:var(--navy);
+    font-size:17px;
+    margin:0 0 16px;
+}
+
+.cl-admin-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+}
+
+.cl-btn-sm{
+    width:auto;
+    height:42px;
+    padding:0 18px;
+    font-size:13.5px;
+    box-shadow:none;
+}
+
+.cl-btn-outline{
+    background:var(--sky);
+    color:var(--navy);
+    box-shadow:none;
+    border:1px solid var(--line);
+}
+
+.cl-admin-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:18px;
+}
+
+.cl-admin-pick-btn{
+    border:1px solid var(--line);
+    background:var(--sky);
+    color:var(--navy);
+    border-radius:var(--radius-sm);
+    padding:10px 16px;
+    font-family:inherit;
+    font-size:13.5px;
+    cursor:pointer;
+}
+
+.cl-admin-pick-btn-active{
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    color:white;
+    border-color:transparent;
+}
+
+.cl-admin-inline-form{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.cl-admin-inline-form input,
+.cl-admin-inline-form select{
+    flex:1;
+    min-width:160px;
+    height:46px;
+    border-radius:var(--radius-sm);
+    border:1px solid var(--line);
+    background:var(--sky);
+    padding:0 14px;
+    font-family:inherit;
+    font-size:14px;
+}
+
+.cl-admin-inline-form-col{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.cl-admin-inline-form-col input,
+.cl-admin-inline-form-col textarea{
+    border-radius:var(--radius-sm);
+    border:1px solid var(--line);
+    background:var(--sky);
+    padding:12px 14px;
+    font-family:inherit;
+    font-size:14px;
+    resize:vertical;
+}
+
+.cl-admin-lesson-row{
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:16px 18px;
+    margin-bottom:12px;
+    background:rgba(255,255,255,.5);
+}
+
+.cl-admin-lesson-head{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+}
+
+.cl-admin-lesson-head strong{
+    color:var(--navy);
+    flex:1;
+}
+
+.cl-admin-badge{
+    font-size:11.5px;
+    font-weight:700;
+    padding:4px 10px;
+    border-radius:20px;
+}
+
+.cl-admin-badge-live{
+    background:rgba(34,176,125,.15);
+    color:var(--success);
+}
+
+.cl-admin-badge-draft{
+    background:rgba(255,107,107,.15);
+    color:var(--warn);
+}
+
+.cl-admin-lesson-body{
+    margin-top:16px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+}
+
+.cl-admin-subsection{
+    margin-bottom:20px;
+}
+
+.cl-admin-subsection h4{
+    color:var(--navy);
+    font-size:14px;
+    margin:0 0 10px;
+}
+
+.cl-admin-mini-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-bottom:10px;
+}
+
+.cl-admin-mini-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-size:13px;
+    background:var(--sky);
+    border-radius:10px;
+    padding:8px 12px;
+}
+
+.cl-admin-empty{
+    font-size:13px;
+    color:#8CA0B3;
+    margin:0;
+}
+
+.cl-admin-del-btn{
+    border:none;
+    background:none;
+    color:var(--warn);
+    font-size:12px;
+    cursor:pointer;
+    white-space:nowrap;
 }

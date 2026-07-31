@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }} | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container">
+
+    <div class="cl-card">
+        <div class="cl-lesson-header">
+            <h1>{{ lesson.title }}</h1>
+            <button id="fav-btn" class="cl-fav-btn {% if is_favorite %}cl-fav-btn-active{% endif %}" data-lesson-id="{{ lesson.id }}">
+                {% if is_favorite %}★ علاقه‌مندی{% else %}☆ افزودن به علاقه‌مندی‌ها{% endif %}
+            </button>
+        </div>
+
+        {% if lesson.media_assets %}
+        <div class="cl-media-list">
+            {% for media in lesson.media_assets %}
+            <div class="cl-media-item">
+                {% if media.type.value == "video" %}
+                    <video controls {% if media.thumbnail_url %}poster="{{ media.thumbnail_url }}"{% endif %} style="width:100%; border-radius:var(--radius-sm);">
+                        <source src="{{ media.file_url }}">
+                    </video>
+                {% elif media.type.value == "image" or media.type.value == "animation" %}
+                    <img src="{{ media.file_url }}" style="width:100%; border-radius:var(--radius-sm);">
+                {% elif media.type.value == "pdf" %}
+                    <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none;">📄 مشاهده‌ی فایل PDF</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if lesson.body_richtext %}
+        <div class="cl-lesson-body">{{ lesson.body_richtext | safe }}</div>
+        {% endif %}
+    </div>
+
+    {% if lesson.quiz_questions %}
+    <div class="cl-card">
+        <h2 style="color:var(--navy); font-size:18px; margin-bottom:18px;">آزمون کوتاه</h2>
+        {% for q in lesson.quiz_questions %}
+        <div class="cl-quiz-question" data-question-id="{{ q.id }}">
+            <p class="cl-quiz-text">{{ q.question_text }}</p>
+            <div class="cl-quiz-options">
+                {% for opt in q.options %}
+                <button class="cl-quiz-option" data-option-id="{{ opt.id }}">{{ opt.option_text }}</button>
+                {% endfor %}
+            </div>
+            <p class="cl-quiz-result" style="display:none;"></p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <button id="complete-btn" class="cl-btn" style="max-width:640px; margin:0 auto 40px; display:block;"
+            data-lesson-id="{{ lesson.id }}" {% if progress.status.value == "completed" %}disabled{% endif %}>
+        {% if progress.status.value == "completed" %}✓ تکمیل‌شده{% else %}پایان درس، علامت‌گذاری به‌عنوان تکمیل‌شده{% endif %}
+    </button>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // --- Favorite toggle ---
+    const favBtn = document.getElementById("fav-btn");
+    let isFavorite = {{ 'true' if is_favorite else 'false' }};
+
+    favBtn.addEventListener("click", async function () {
+        const lessonId = favBtn.dataset.lessonId;
+        const method = isFavorite ? "DELETE" : "POST";
+        const res = await fetch(`/lessons/${lessonId}/favorite`, { method });
+        if (res.ok) {
+            const data = await res.json();
+            isFavorite = data.is_favorite;
+            favBtn.textContent = isFavorite ? "★ علاقه‌مندی" : "☆ افزودن به علاقه‌مندی‌ها";
+            favBtn.classList.toggle("cl-fav-btn-active", isFavorite);
+        }
+    });
+
+    // --- Mark as completed ---
+    const completeBtn = document.getElementById("complete-btn");
+    completeBtn.addEventListener("click", async function () {
+        const lessonId = completeBtn.dataset.lessonId;
+        const res = await fetch(`/lessons/${lessonId}/progress`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "completed" }),
+        });
+        if (res.ok) {
+            completeBtn.textContent = "✓ تکمیل‌شده";
+            completeBtn.disabled = true;
+        }
+    });
+
+    // --- Quiz answering ---
+    document.querySelectorAll(".cl-quiz-question").forEach(function (questionEl) {
+        const questionId = questionEl.dataset.questionId;
+        const resultEl = questionEl.querySelector(".cl-quiz-result");
+        const optionButtons = questionEl.querySelectorAll(".cl-quiz-option");
+
+        optionButtons.forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                if (questionEl.dataset.answered === "true") return;
+
+                const res = await fetch(`/quiz-questions/${questionId}/attempt`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ option_id: btn.dataset.optionId }),
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                questionEl.dataset.answered = "true";
+                optionButtons.forEach(function (b) {
+                    b.disabled = true;
+                    if (b.dataset.optionId === data.correct_option_id) {
+                        b.classList.add("cl-quiz-option-correct");
+                    } else if (b === btn) {
+                        b.classList.add("cl-quiz-option-wrong");
+                    }
+                });
+
+                resultEl.style.display = "block";
+                resultEl.textContent = data.is_correct ? "✓ پاسخ درست بود." : "✗ پاسخ نادرست بود.";
+                resultEl.className = "cl-quiz-result " + (data.is_correct ? "cl-quiz-result-correct" : "cl-quiz-result-wrong");
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

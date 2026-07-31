@@ -1,9 +1,11 @@
 """
-app/api/v1/patient_home.py
+app/api/v1/welcome.py
 
-Patient's main screen: lessons relevant to their current journey
-stage + department type + condition. Redirects back to onboarding if
-not completed yet.
+The very first screen a patient sees right after scanning the QR,
+before onboarding. Shows published lessons tagged for the WELCOME
+journey stage (usually general/hospital-wide content, e.g. hospital
+rules, wifi info, general orientation) - then lets the patient move
+on to the onboarding questionnaire.
 """
 
 from fastapi import APIRouter, Request, Depends
@@ -11,23 +13,23 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import PatientJourneyProfile
+from app.infrastructure.db.models import PatientJourneyProfile, JourneyStageCode
 from app.api.deps import AccessContext, get_access_context, get_active_journey
 from app.services.content_targeting_service import get_lessons_for_journey
 from app.core.templates import templates
 
-router = APIRouter(tags=["patient_home"])
+router = APIRouter(tags=["welcome"])
 
 
-@router.get("/home")
-async def patient_home(
+@router.get("/welcome")
+async def welcome_page(
     request: Request,
     context: AccessContext = Depends(get_access_context),
     journey: PatientJourneyProfile = Depends(get_active_journey),
     db: Session = Depends(get_db),
 ):
-    if not journey.onboarding_completed_at:
-        return RedirectResponse(url="/onboarding", status_code=303)
+    if journey.onboarding_completed_at:
+        return RedirectResponse(url="/home", status_code=303)
 
     department = context.qr_access_point.department
 
@@ -41,12 +43,21 @@ async def patient_home(
 
     return templates.TemplateResponse(
         request,
-        "patient_home.html",
+        "welcome.html",
         {
             "request": request,
             "lessons": lessons,
-            "journey": journey,
             "hospital": context.qr_access_point.hospital,
             "department": department,
         },
     )
+
+
+@router.post("/welcome/continue")
+async def welcome_continue(
+    journey: PatientJourneyProfile = Depends(get_active_journey),
+    db: Session = Depends(get_db),
+):
+    journey.current_stage = JourneyStageCode.ADMISSION
+    db.commit()
+    return RedirectResponse(url="/onboarding", status_code=303)

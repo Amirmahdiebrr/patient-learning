@@ -2,10 +2,13 @@
 app/services/patient_assistant_service.py
 
 Builds the context-aware prompt for the patient AI assistant: pulls
-the published lessons relevant to the patient's current journey stage
-and disease/treatment (same lessons the targeting engine would show
-them), then asks the AI, grounded in that content first.
+the published lessons relevant to the patient's current journey stage,
+department type and disease/treatment (same lessons the targeting
+engine would show them), then asks the AI, grounded in that content
+first.
 """
+
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -43,8 +46,20 @@ class PatientAssistantService:
 
         return "\n".join(lines) if lines else NO_HISTORY_TEXT
 
-    def _build_lesson_context(self, db: Session, journey: PatientJourneyProfile) -> str:
-        lessons = get_lessons_for_journey(db, journey)
+    def _build_lesson_context(
+        self,
+        db: Session,
+        journey: PatientJourneyProfile,
+        hospital_id: uuid.UUID,
+        department_id: uuid.UUID,
+        department_type_id: uuid.UUID | None,
+    ) -> str:
+        lessons = get_lessons_for_journey(
+            db, journey,
+            hospital_id=hospital_id,
+            department_id=department_id,
+            department_type_id=department_type_id,
+        )
 
         if not lessons:
             return NO_CONTEXT_TEXT
@@ -63,9 +78,14 @@ class PatientAssistantService:
         journey: PatientJourneyProfile,
         question: str,
         history: list[dict],
+        hospital_id: uuid.UUID,
+        department_id: uuid.UUID,
+        department_type_id: uuid.UUID | None,
     ) -> str:
 
-        lesson_context = self._build_lesson_context(db, journey)
+        lesson_context = self._build_lesson_context(
+            db, journey, hospital_id, department_id, department_type_id
+        )
         history_text = self._format_history(history)
 
         prompt = PATIENT_ASSISTANT_SYSTEM_PROMPT.format(
