@@ -1,24 +1,17 @@
 """
 app/services/content_targeting_service.py
 
-Resolves which published lessons should be shown to a given patient
-journey, combining two matching layers:
-
-1. Structural match (the main scoping mechanism):
-   EducationSection.journey_stage == patient's current_stage, AND
-   (section.department_type_id is NULL [general - shown to every
-   department] OR section.department_type_id == the patient's
-   department's department_type_id), AND (section.treatment_id is
-   NULL [general] OR section.treatment_id == patient's treatment_id).
-   This is what makes content a shared library: build it once per
-   department type, and every hospital with a Department of that type
-   gets it automatically - no per-hospital linking required.
-
-2. Fine-grained OPTIONAL override: ContentTargetingRule rows on the
-   lesson (age/gender/disease/treatment, or a specific hospital/
-   department for a rare one-off exception). A lesson with at least
-   one rule must match at least one of its rules; a lesson with zero
-   rules is shown to everyone matching the structural layer.
+Resolves published lessons for a patient journey through:
+1. Structural match (journey_stage + department_type, general or
+   treatment-specific).
+2. Hospital-level override resolution FIRST: if a HOSPITAL-scoped
+   override Lesson exists for the base lesson and current hospital,
+   it fully replaces the base lesson - independent of whether the
+   base lesson itself is published. This lets a hospital publish its
+   own override even while the shared global lesson stays in draft.
+3. Optional ContentTargetingRule filtering (age/gender/disease/
+   treatment), evaluated on whichever lesson (base or override) is
+   ultimately shown.
 """
 
 import uuid
@@ -31,6 +24,7 @@ from app.infrastructure.db.models import (
     EducationSection,
     ContentTargetingRule,
     PatientJourneyProfile,
+    LessonOverrideLevel,
 )
 
 
@@ -57,6 +51,28 @@ def _rule_matches(
     return True
 
 
+def _resolve_effective_lesson(db: Session, base_lesson: Lesson, hospital_id: uuid.UUID) -> Lesson | None:
+    """
+    Returns the lesson that should actually be shown for this
+    hospital: the hospital's published override if one exists,
+    otherwise the base lesson IF it is published, otherwise None
+    (nothing to show).
+    """
+    override = (
+        db.query(Lesson)
+        .filter(
+            Lesson.parent_lesson_id == base_lesson.id,
+            Lesson.hospital_id == hospital_id,
+            Lesson.is_published.is_(True),
+        )
+        .first()
+    )
+    if override:
+        return override
+
+    return base_lesson if base_lesson.is_published else None
+
+
 def get_lessons_for_journey(
     db: Session,
     journey: PatientJourneyProfile,
@@ -64,11 +80,6 @@ def get_lessons_for_journey(
     department_id: uuid.UUID,
     department_type_id: uuid.UUID | None,
 ) -> list[Lesson]:
-    """
-    Returns published lessons relevant to this patient's current
-    stage, department type and condition, ordered by section/lesson
-    display_order.
-    """
 
     sections = (
         db.query(EducationSection)
@@ -92,17 +103,21 @@ def get_lessons_for_journey(
 
     for section in sections:
         for lesson in section.lessons:
-            if not lesson.is_published:
+            if lesson.override_level == LessonOverrideLevel.HOSPITAL:
+                continue  # only surfaced via _resolve_effective_lesson below
+
+            effective_lesson = _resolve_effective_lesson(db, lesson, hospital_id)
+            if effective_lesson is None:
                 continue
 
             if not lesson.targeting_rules:
-                matched_lessons.append(lesson)
+                matched_lessons.append(effective_lesson)
                 continue
 
             if any(
                 _rule_matches(rule, journey, hospital_id, department_id)
                 for rule in lesson.targeting_rules
             ):
-                matched_lessons.append(lesson)
+                matched_lessons.append(effective_lesson)
 
     return matched_lessons

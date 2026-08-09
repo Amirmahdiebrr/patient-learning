@@ -2,6 +2,17 @@
 {% block title %}پنل مدیریت محتوا | CuraLink{% endblock %}
 {% block content %}
 <div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card">
+        <h1>جستجوی سریع دروس</h1>
+        <p class="cl-sub">عنوان یا متن هر درس را جستجو کن؛ نتیجه مستقیم قابل ویرایش/حذف/انتشار است.</p>
+        <div class="cl-admin-inline-form">
+            <input type="text" id="global-search-input" placeholder="حداقل ۲ حرف بنویس...">
+            <button id="global-search-btn" class="cl-btn cl-btn-sm">جستجو</button>
+        </div>
+        <div id="global-search-results" style="margin-top:16px;"></div>
+    </div>
 
     <div class="cl-card cl-admin-card">
         <h1>۱. ساخت محتوای آموزشی (کتابخانه‌ی مشترک)</h1>
@@ -27,7 +38,7 @@
 
     <div class="cl-card cl-admin-card" id="section-card" style="display:none;">
         <h2 class="cl-admin-h2">بخش‌های آموزشی این مرحله + نوع بخش</h2>
-        <div id="section-list" class="cl-admin-list"></div>
+        <div id="section-list" class="cl-admin-section-list"></div>
 
         <div class="cl-admin-inline-form">
             <input type="text" id="new-section-title" placeholder="برچسب کوتاه بخش (مثلاً: خوش‌آمدگویی عمومی)">
@@ -46,7 +57,7 @@
         </div>
     </div>
 
-    <div class="cl-card cl-admin-card">
+    <div class="cl-card cl-admin-card" id="hospitals">
         <h1>۲. اتصال بخش به بیمارستان</h1>
         <p class="cl-sub">
             فقط کافیست بگویید این بیمارستان چه نوع بخش‌هایی دارد — محتوای هر نوع خودکار وصل می‌شود.
@@ -57,12 +68,23 @@
             <button id="create-hospital-btn" class="cl-btn cl-btn-sm">+ ساخت بیمارستان</button>
         </div>
 
+        <div class="cl-admin-inline-form" style="margin-bottom:16px;">
+            <input type="text" id="hospital-search-input" placeholder="جستجوی بیمارستان...">
+            <label class="cl-admin-checkbox-label">
+                <input type="checkbox" id="hospital-include-inactive"> نمایش غیرفعال‌ها
+            </label>
+        </div>
+
         <div class="cl-field">
             <label>بیمارستان</label>
             <select id="hospital-select"><option value="">— انتخاب کنید —</option></select>
         </div>
+        <div id="hospital-actions" class="cl-admin-inline-form" style="display:none; margin-top:-8px;">
+            <button id="edit-hospital-btn" class="cl-btn cl-btn-sm cl-btn-outline">ویرایش نام</button>
+            <button id="toggle-hospital-btn" class="cl-btn cl-btn-sm cl-btn-outline">غیرفعال/فعال کردن</button>
+        </div>
 
-        <div class="cl-admin-inline-form">
+        <div class="cl-admin-inline-form" style="margin-top:18px;">
             <input type="text" id="new-department-name" placeholder="نام بخش (مثلاً: ارتوپدی طبقه ۲)">
             <select id="new-department-type"><option value="">— نوع استاندارد بخش —</option></select>
             <button id="create-department-btn" class="cl-btn cl-btn-sm">+ افزودن بخش به این بیمارستان</button>
@@ -71,6 +93,10 @@
         <div class="cl-field" style="margin-top:18px;">
             <label>بخش‌های این بیمارستان</label>
             <select id="department-select"><option value="">— ابتدا بیمارستان را انتخاب کنید —</option></select>
+        </div>
+        <div id="department-actions" class="cl-admin-inline-form" style="display:none;">
+            <button id="edit-department-btn" class="cl-btn cl-btn-sm cl-btn-outline">ویرایش</button>
+            <button id="toggle-department-btn" class="cl-btn cl-btn-sm cl-btn-outline">غیرفعال/فعال کردن</button>
         </div>
     </div>
 
@@ -90,7 +116,7 @@
     async function api(path, options) {
         options = options || {};
         options.headers = Object.assign(
-            { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            options.isFormData ? { "Authorization": "Bearer " + token } : { "Content-Type": "application/json", "Authorization": "Bearer " + token },
             options.headers || {}
         );
         const res = await fetch(path, options);
@@ -105,11 +131,16 @@
         return data;
     }
 
+    const MACRO_LABELS = {
+        surgical: "جراحی", medical: "داخلی / طبی", critical_care: "ویژه (Critical Care)",
+        obstetrics_gynecology: "زنان و زایمان", pediatrics: "اطفال", outpatient_procedures: "سرپایی تشخیصی/درمانی",
+    };
+
+    let allDepartmentTypes = [];
+    let allJourneyStages = [];
+
     const state = {
-        contentDepartmentTypeId: "general",
-        stageId: null,
-        sectionId: null,
-        hospitalId: null,
+        contentDepartmentTypeId: "general", stageId: null, sectionId: null, hospitalId: null, departmentId: null,
     };
 
     const contentDeptTypeSelect = document.getElementById("content-department-type-select");
@@ -121,15 +152,12 @@
     const hospitalSelect = document.getElementById("hospital-select");
     const departmentSelect = document.getElementById("department-select");
     const newDepartmentTypeSelect = document.getElementById("new-department-type");
-
-    const MACRO_LABELS = {
-        surgical: "جراحی",
-        medical: "داخلی / طبی",
-        critical_care: "ویژه (Critical Care)",
-        obstetrics_gynecology: "زنان و زایمان",
-        pediatrics: "اطفال",
-        outpatient_procedures: "سرپایی تشخیصی/درمانی",
-    };
+    const hospitalActions = document.getElementById("hospital-actions");
+    const departmentActions = document.getElementById("department-actions");
+    const hospitalSearchInput = document.getElementById("hospital-search-input");
+    const hospitalIncludeInactive = document.getElementById("hospital-include-inactive");
+    const globalSearchInput = document.getElementById("global-search-input");
+    const globalSearchResults = document.getElementById("global-search-results");
 
     function renderDepartmentTypeOptions(selectEl, placeholderValue, placeholderText, types) {
         const grouped = {};
@@ -140,24 +168,22 @@
         let html = `<option value="${placeholderValue}">${placeholderText}</option>`;
         Object.keys(grouped).forEach(function (macro) {
             html += `<optgroup label="${MACRO_LABELS[macro] || macro}">`;
-            grouped[macro].forEach(function (t) {
-                html += `<option value="${t.id}">${t.name}</option>`;
-            });
+            grouped[macro].forEach(function (t) { html += `<option value="${t.id}">${t.name}</option>`; });
             html += "</optgroup>";
         });
         selectEl.innerHTML = html;
     }
 
     async function loadDepartmentTypes() {
-        const types = await api("/admin/department-types");
-        renderDepartmentTypeOptions(contentDeptTypeSelect, "general", "— عمومی (همه‌ی بخش‌ها) —", types);
-        renderDepartmentTypeOptions(newDepartmentTypeSelect, "", "— نوع استاندارد بخش —", types);
+        allDepartmentTypes = await api("/admin/department-types");
+        renderDepartmentTypeOptions(contentDeptTypeSelect, "general", "— عمومی (همه‌ی بخش‌ها) —", allDepartmentTypes);
+        renderDepartmentTypeOptions(newDepartmentTypeSelect, "", "— نوع استاندارد بخش —", allDepartmentTypes);
     }
 
     async function loadStages() {
-        const stages = await api("/admin/journey-stages");
+        allJourneyStages = await api("/admin/journey-stages");
         stageSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
-            stages.map(function (s) { return `<option value="${s.id}">${s.name}</option>`; }).join("");
+            allJourneyStages.map(function (s) { return `<option value="${s.id}">${s.name}</option>`; }).join("");
     }
 
     async function loadSections() {
@@ -165,18 +191,62 @@
         const sections = await api(url);
         sectionList.innerHTML = sections.length === 0
             ? '<p style="color:#8CA0B3; font-size:13.5px;">هنوز بخشی برای این ترکیب ساخته نشده.</p>'
-            : sections.map(function (s) {
-                return `<button class="cl-admin-pick-btn" data-section-id="${s.id}">${s.title}</button>`;
-            }).join("");
+            : sections.map(renderSectionRow).join("");
+        sections.forEach(function (s) { wireSectionRow(s); });
+    }
 
-        sectionList.querySelectorAll(".cl-admin-pick-btn").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                sectionList.querySelectorAll(".cl-admin-pick-btn").forEach(function (b) { b.classList.remove("cl-admin-pick-btn-active"); });
-                btn.classList.add("cl-admin-pick-btn-active");
-                state.sectionId = btn.dataset.sectionId;
-                lessonCard.style.display = "block";
-                loadLessons(state.sectionId);
-            });
+    function renderSectionRow(s) {
+        return `
+        <div class="cl-admin-section-row" data-section-id="${s.id}">
+            <button class="cl-admin-pick-btn" data-section-id="${s.id}">${s.title} <small>(${s.lesson_count} درس)</small></button>
+            <button class="cl-admin-icon-btn" data-action="edit-section" data-section-id="${s.id}" title="ویرایش">✎</button>
+            <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-action="delete-section" data-section-id="${s.id}" title="حذف">🗑</button>
+        </div>`;
+    }
+
+    function wireSectionRow(section) {
+        const row = sectionList.querySelector(`.cl-admin-section-row[data-section-id="${section.id}"]`);
+
+        row.querySelector('.cl-admin-pick-btn').addEventListener("click", function (e) {
+            sectionList.querySelectorAll(".cl-admin-pick-btn").forEach(function (b) { b.classList.remove("cl-admin-pick-btn-active"); });
+            e.currentTarget.classList.add("cl-admin-pick-btn-active");
+            state.sectionId = section.id;
+            lessonCard.style.display = "block";
+            loadLessons(state.sectionId);
+        });
+
+        row.querySelector('[data-action="edit-section"]').addEventListener("click", async function () {
+            const result = await AdminModal.form("ویرایش بخش", [
+                { name: "title", label: "برچسب بخش", value: section.title },
+            ]);
+            if (!result || !result.title) return;
+            try {
+                await api(`/admin/education-sections/${section.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        journey_stage_id: section.journey_stage_id,
+                        department_type_id: section.department_type_id,
+                        treatment_id: section.treatment_id,
+                        title: result.title,
+                    }),
+                });
+                AdminToast.success("بخش ویرایش شد.");
+                await loadSections();
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
+        });
+
+        row.querySelector('[data-action="delete-section"]').addEventListener("click", async function () {
+            const confirmed = await AdminModal.confirm("این بخش حذف شود؟");
+            if (!confirmed) return;
+            try {
+                await api(`/admin/education-sections/${section.id}`, { method: "DELETE" });
+                AdminToast.success("بخش حذف شد.");
+                await loadSections();
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
         });
     }
 
@@ -185,17 +255,13 @@
         lessonList.innerHTML = lessons.length === 0
             ? '<p style="color:#8CA0B3; font-size:13.5px; margin-bottom:16px;">هنوز درسی ساخته نشده.</p>'
             : lessons.map(renderLessonRow).join("");
-
-        lessons.forEach(function (lesson) {
-            wireLessonRow(lesson.id);
-        });
+        lessons.forEach(function (lesson) { wireLessonRow(lesson.id); });
     }
 
     function renderLessonRow(lesson) {
         const statusBadge = lesson.is_published
             ? '<span class="cl-admin-badge cl-admin-badge-live">منتشرشده</span>'
             : '<span class="cl-admin-badge cl-admin-badge-draft">پیش‌نویس</span>';
-
         return `
         <div class="cl-admin-lesson-row" data-lesson-id="${lesson.id}">
             <div class="cl-admin-lesson-head">
@@ -212,10 +278,7 @@
         btn.addEventListener("click", async function () {
             const body = document.getElementById(`lesson-body-${lessonId}`);
             const isOpen = body.style.display !== "none";
-            if (isOpen) {
-                body.style.display = "none";
-                return;
-            }
+            if (isOpen) { body.style.display = "none"; return; }
             body.style.display = "block";
             await renderLessonDetail(lessonId, body);
         });
@@ -229,12 +292,23 @@
             api(`/admin/lessons/${lessonId}/quiz-questions`),
         ]);
 
+        const currentLesson = await fetchLessonById(lessonId);
+
         container.innerHTML = `
             <div class="cl-admin-subsection">
-                <h4>مدیا</h4>
+                <h4>ویرایش عنوان و متن</h4>
+                <div class="cl-admin-inline-form-col">
+                    <input type="text" id="edit-lesson-title-${lessonId}" value="${escapeHtml(currentLesson.title)}">
+                    <textarea id="edit-lesson-body-${lessonId}" rows="5">${escapeHtml(currentLesson.body_richtext || "")}</textarea>
+                    <button class="cl-btn cl-btn-sm" data-action="save-lesson" data-lesson-id="${lessonId}">ذخیره تغییرات</button>
+                </div>
+            </div>
+
+            <div class="cl-admin-subsection">
+                <h4>مدیا (آپلود فایل واقعی)</h4>
                 <div class="cl-admin-mini-list" id="media-list-${lessonId}">
                     ${media.map(function (m) {
-                        return `<div class="cl-admin-mini-item">${m.type} - ${m.file_url}
+                        return `<div class="cl-admin-mini-item">${m.type} - <a href="${m.file_url}" target="_blank">${m.file_url}</a>
                             <button class="cl-admin-del-btn" data-kind="media" data-id="${m.id}">حذف</button></div>`;
                     }).join("") || '<p class="cl-admin-empty">موردی ثبت نشده.</p>'}
                 </div>
@@ -245,9 +319,10 @@
                         <option value="pdf">PDF</option>
                         <option value="animation">انیمیشن</option>
                     </select>
-                    <input type="text" id="media-url-${lessonId}" placeholder="لینک فایل">
-                    <button class="cl-btn cl-btn-sm" data-action="add-media" data-lesson-id="${lessonId}">+ افزودن</button>
+                    <input type="file" id="media-file-${lessonId}">
+                    <button class="cl-btn cl-btn-sm" data-action="upload-media" data-lesson-id="${lessonId}">+ آپلود و افزودن</button>
                 </div>
+                <p class="cl-admin-empty" id="media-upload-status-${lessonId}"></p>
             </div>
 
             <div class="cl-admin-subsection">
@@ -266,56 +341,125 @@
                 </div>
             </div>
 
-            <button class="cl-btn" data-action="publish" data-lesson-id="${lessonId}" style="margin-top:18px;">
-                منتشر کردن این درس
-            </button>
-            <button class="cl-btn cl-btn-outline" data-action="unpublish" data-lesson-id="${lessonId}" style="margin-top:8px;">
-                بازگرداندن به پیش‌نویس
-            </button>
+            <button class="cl-btn" data-action="publish" data-lesson-id="${lessonId}" style="margin-top:18px;">منتشر کردن این درس</button>
+            <button class="cl-btn cl-btn-outline" data-action="unpublish" data-lesson-id="${lessonId}" style="margin-top:8px;">بازگرداندن به پیش‌نویس</button>
+            <button class="cl-btn cl-btn-outline" data-action="delete-lesson" data-lesson-id="${lessonId}" style="margin-top:8px; color:var(--warn); border-color:var(--warn);">حذف این درس</button>
         `;
 
         wireLessonDetailActions(lessonId, container);
     }
 
+    async function fetchLessonById(lessonId) {
+        if (!state.sectionId) throw new Error("بخش انتخاب نشده.");
+        const lessons = await api(`/admin/lessons?section_id=${state.sectionId}`);
+        const found = lessons.find(function (l) { return l.id === lessonId; });
+        if (!found) throw new Error("درس پیدا نشد.");
+        return found;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     function wireLessonDetailActions(lessonId, container) {
-        container.querySelector(`[data-action="add-media"]`).addEventListener("click", async function () {
+        container.querySelector(`[data-action="save-lesson"]`).addEventListener("click", async function () {
+            const title = document.getElementById(`edit-lesson-title-${lessonId}`).value.trim();
+            const body = document.getElementById(`edit-lesson-body-${lessonId}`).value.trim();
+            if (!title) { AdminToast.error("عنوان نمی‌تواند خالی باشد."); return; }
+            try {
+                await api(`/admin/lessons/${lessonId}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ title: title, body_richtext: body }),
+                });
+                AdminToast.success("درس ذخیره شد.");
+                await loadLessons(state.sectionId);
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
+        });
+
+        container.querySelector(`[data-action="upload-media"]`).addEventListener("click", async function () {
             const type = document.getElementById(`media-type-${lessonId}`).value;
-            const url = document.getElementById(`media-url-${lessonId}`).value.trim();
-            if (!url) return alert("لینک فایل را وارد کنید.");
-            await api("/admin/media-assets", {
-                method: "POST",
-                body: JSON.stringify({ lesson_id: lessonId, type: type, file_url: url }),
-            });
-            await renderLessonDetail(lessonId, container);
+            const fileInput = document.getElementById(`media-file-${lessonId}`);
+            const statusEl = document.getElementById(`media-upload-status-${lessonId}`);
+            const file = fileInput.files[0];
+            if (!file) { AdminToast.error("یک فایل انتخاب کنید."); return; }
+
+            statusEl.textContent = "در حال آپلود...";
+            const formData = new FormData();
+            formData.append("media_type", type);
+            formData.append("file", file);
+
+            try {
+                const uploadResult = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
+                await api("/admin/media-assets", {
+                    method: "POST",
+                    body: JSON.stringify({ lesson_id: lessonId, type: type, file_url: uploadResult.url }),
+                });
+                statusEl.textContent = "";
+                AdminToast.success("فایل آپلود شد.");
+                await renderLessonDetail(lessonId, container);
+            } catch (err) {
+                statusEl.textContent = "";
+                AdminToast.error("خطا: " + err.message);
+            }
         });
 
         container.querySelector(`[data-action="add-quiz"]`).addEventListener("click", async function () {
             const question = document.getElementById(`quiz-question-${lessonId}`).value.trim();
             const opt1 = document.getElementById(`quiz-opt1-${lessonId}`).value.trim();
             const opt2 = document.getElementById(`quiz-opt2-${lessonId}`).value.trim();
-            if (!question || !opt1 || !opt2) return alert("سوال و هر دو گزینه را پر کنید.");
-            await api("/admin/quiz-questions", {
-                method: "POST",
-                body: JSON.stringify({
-                    lesson_id: lessonId,
-                    question_text: question,
-                    options: [
-                        { option_text: opt1, is_correct: true },
-                        { option_text: opt2, is_correct: false },
-                    ],
-                }),
-            });
-            await renderLessonDetail(lessonId, container);
+            if (!question || !opt1 || !opt2) { AdminToast.error("سوال و هر دو گزینه را پر کنید."); return; }
+            try {
+                await api("/admin/quiz-questions", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        lesson_id: lessonId, question_text: question,
+                        options: [
+                            { option_text: opt1, is_correct: true },
+                            { option_text: opt2, is_correct: false },
+                        ],
+                    }),
+                });
+                AdminToast.success("سوال اضافه شد.");
+                await renderLessonDetail(lessonId, container);
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
         });
 
         container.querySelector(`[data-action="publish"]`).addEventListener("click", async function () {
-            await api(`/admin/lessons/${lessonId}/publish`, { method: "POST" });
-            await loadLessons(state.sectionId);
+            try {
+                await api(`/admin/lessons/${lessonId}/publish`, { method: "POST" });
+                AdminToast.success("درس منتشر شد.");
+                await loadLessons(state.sectionId);
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
         });
 
         container.querySelector(`[data-action="unpublish"]`).addEventListener("click", async function () {
-            await api(`/admin/lessons/${lessonId}/unpublish`, { method: "POST" });
-            await loadLessons(state.sectionId);
+            try {
+                await api(`/admin/lessons/${lessonId}/unpublish`, { method: "POST" });
+                AdminToast.success("درس به پیش‌نویس برگشت.");
+                await loadLessons(state.sectionId);
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
+        });
+
+        container.querySelector(`[data-action="delete-lesson"]`).addEventListener("click", async function () {
+            const confirmed = await AdminModal.confirm("این درس و تمام مدیا/آزمون‌های آن حذف شود؟");
+            if (!confirmed) return;
+            try {
+                await api(`/admin/lessons/${lessonId}`, { method: "DELETE" });
+                AdminToast.success("درس حذف شد.");
+                await loadLessons(state.sectionId);
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
         });
 
         container.querySelectorAll(".cl-admin-del-btn").forEach(function (btn) {
@@ -323,8 +467,13 @@
                 const kind = btn.dataset.kind;
                 const id = btn.dataset.id;
                 const endpoint = kind === "media" ? `/admin/media-assets/${id}` : `/admin/quiz-questions/${id}`;
-                await api(endpoint, { method: "DELETE" });
-                await renderLessonDetail(lessonId, container);
+                try {
+                    await api(endpoint, { method: "DELETE" });
+                    AdminToast.success("حذف شد.");
+                    await renderLessonDetail(lessonId, container);
+                } catch (err) {
+                    AdminToast.error(err.message);
+                }
             });
         });
     }
@@ -348,95 +497,207 @@
 
     document.getElementById("create-section-btn").addEventListener("click", async function () {
         const title = document.getElementById("new-section-title").value.trim();
-        if (!title) return alert("برچسب بخش را وارد کنید.");
-        if (!state.stageId) return alert("اول مرحله را انتخاب کنید.");
-        await api("/admin/education-sections", {
-            method: "POST",
-            body: JSON.stringify({
-                journey_stage_id: state.stageId,
-                department_type_id: state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
-                title: title,
-                display_order: 0,
-            }),
-        });
-        document.getElementById("new-section-title").value = "";
-        await loadSections();
+        if (!title) { AdminToast.error("عنوان بخش را وارد کنید."); return; }
+        if (!state.stageId) { AdminToast.error("اول مرحله را انتخاب کنید."); return; }
+        try {
+            await api("/admin/education-sections", {
+                method: "POST",
+                body: JSON.stringify({
+                    journey_stage_id: state.stageId,
+                    department_type_id: state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
+                    title: title, display_order: 0,
+                }),
+            });
+            document.getElementById("new-section-title").value = "";
+            AdminToast.success("بخش ساخته شد.");
+            await loadSections();
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
     });
 
     document.getElementById("create-lesson-btn").addEventListener("click", async function () {
         const title = document.getElementById("new-lesson-title").value.trim();
         const body = document.getElementById("new-lesson-body").value.trim();
-        if (!title || !body) return alert("عنوان و متن درس را وارد کنید.");
-        if (!state.sectionId) return alert("اول یک بخش را انتخاب کنید.");
-        await api("/admin/lessons", {
-            method: "POST",
-            body: JSON.stringify({ section_id: state.sectionId, title: title, body_richtext: body, display_order: 0 }),
-        });
-        document.getElementById("new-lesson-title").value = "";
-        document.getElementById("new-lesson-body").value = "";
-        await loadLessons(state.sectionId);
+        if (!title || !body) { AdminToast.error("عنوان و متن درس را وارد کنید."); return; }
+        if (!state.sectionId) { AdminToast.error("اول یک بخش را انتخاب کنید."); return; }
+        try {
+            await api("/admin/lessons", {
+                method: "POST",
+                body: JSON.stringify({ section_id: state.sectionId, title: title, body_richtext: body, display_order: 0 }),
+            });
+            document.getElementById("new-lesson-title").value = "";
+            document.getElementById("new-lesson-body").value = "";
+            AdminToast.success("درس ساخته شد.");
+            await loadLessons(state.sectionId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
     });
 
-    // ---- Hospital / Department attachment ----
-
     async function loadHospitals(selectAfterId) {
-        const hospitals = await api("/admin/hospitals");
+        const search = hospitalSearchInput.value.trim();
+        const includeInactive = hospitalIncludeInactive.checked;
+        let url = "/admin/hospitals?";
+        if (search) url += `search=${encodeURIComponent(search)}&`;
+        if (includeInactive) url += `include_inactive=true&`;
+
+        const hospitals = await api(url);
         hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
-            hospitals.map(function (h) { return `<option value="${h.id}">${h.name}</option>`; }).join("");
+            hospitals.map(function (h) {
+                const inactiveTag = h.is_active ? "" : " (غیرفعال)";
+                return `<option value="${h.id}">${h.name}${inactiveTag}</option>`;
+            }).join("");
+
         if (selectAfterId) {
             hospitalSelect.value = selectAfterId;
             state.hospitalId = selectAfterId;
+            hospitalActions.style.display = "flex";
             await loadDepartments(selectAfterId);
         }
     }
 
     async function loadDepartments(hospitalId) {
         departmentSelect.innerHTML = '<option value="">در حال بارگذاری...</option>';
-        const departments = await api(`/admin/hospitals/${hospitalId}/departments`);
+        const departments = await api(`/admin/hospitals/${hospitalId}/departments?include_inactive=true`);
         departmentSelect.innerHTML = '<option value="">— بخشی هنوز اضافه نشده —</option>' +
             departments.map(function (d) {
                 const typeLabel = d.department_type_name ? ` (${d.department_type_name})` : " (عمومی)";
-                return `<option value="${d.id}">${d.name}${typeLabel}</option>`;
+                const inactiveTag = d.is_active ? "" : " [غیرفعال]";
+                return `<option value="${d.id}">${d.name}${typeLabel}${inactiveTag}</option>`;
             }).join("");
     }
 
     hospitalSelect.addEventListener("change", async function () {
         state.hospitalId = hospitalSelect.value || null;
         if (state.hospitalId) {
+            hospitalActions.style.display = "flex";
             await loadDepartments(state.hospitalId);
         } else {
+            hospitalActions.style.display = "none";
             departmentSelect.innerHTML = '<option value="">— ابتدا بیمارستان را انتخاب کنید —</option>';
+            departmentActions.style.display = "none";
         }
     });
 
+    departmentSelect.addEventListener("change", function () {
+        state.departmentId = departmentSelect.value || null;
+        departmentActions.style.display = state.departmentId ? "flex" : "none";
+    });
+
+    hospitalSearchInput.addEventListener("input", debounce(function () { loadHospitals(); }, 350));
+    hospitalIncludeInactive.addEventListener("change", function () { loadHospitals(); });
+
+    function debounce(fn, delay) {
+        let timer = null;
+        return function (...args) {
+            clearTimeout(timer);
+            timer = setTimeout(function () { fn.apply(null, args); }, delay);
+        };
+    }
+
     document.getElementById("create-hospital-btn").addEventListener("click", async function () {
         const name = document.getElementById("new-hospital-name").value.trim();
-        if (!name) return alert("نام بیمارستان را وارد کنید.");
-        const hospital = await api("/admin/hospitals", {
-            method: "POST",
-            body: JSON.stringify({ name: name }),
-        });
-        document.getElementById("new-hospital-name").value = "";
-        await loadHospitals(hospital.id);
+        if (!name) { AdminToast.error("نام بیمارستان را وارد کنید."); return; }
+        try {
+            const hospital = await api("/admin/hospitals", { method: "POST", body: JSON.stringify({ name: name }) });
+            document.getElementById("new-hospital-name").value = "";
+            AdminToast.success("بیمارستان ساخته شد.");
+            await loadHospitals(hospital.id);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    document.getElementById("edit-hospital-btn").addEventListener("click", async function () {
+        if (!state.hospitalId) return;
+        const currentName = hospitalSelect.options[hospitalSelect.selectedIndex].text.replace(" (غیرفعال)", "");
+        const result = await AdminModal.form("ویرایش نام بیمارستان", [
+            { name: "name", label: "نام بیمارستان", value: currentName },
+        ]);
+        if (!result || !result.name) return;
+        try {
+            await api(`/admin/hospitals/${state.hospitalId}`, { method: "PATCH", body: JSON.stringify({ name: result.name }) });
+            AdminToast.success("نام بیمارستان ویرایش شد.");
+            await loadHospitals(state.hospitalId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    document.getElementById("toggle-hospital-btn").addEventListener("click", async function () {
+        if (!state.hospitalId) return;
+        const isCurrentlyActive = !hospitalSelect.options[hospitalSelect.selectedIndex].text.includes("(غیرفعال)");
+        const endpoint = isCurrentlyActive ? "deactivate" : "reactivate";
+        try {
+            await api(`/admin/hospitals/${state.hospitalId}/${endpoint}`, { method: "POST" });
+            AdminToast.success("وضعیت بیمارستان تغییر کرد.");
+            await loadHospitals(state.hospitalId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
     });
 
     document.getElementById("create-department-btn").addEventListener("click", async function () {
         const name = document.getElementById("new-department-name").value.trim();
         const departmentTypeId = newDepartmentTypeSelect.value || null;
-        if (!name) return alert("نام بخش را وارد کنید.");
-        if (!state.hospitalId) return alert("اول یک بیمارستان را انتخاب کنید.");
+        if (!name) { AdminToast.error("نام بخش را وارد کنید."); return; }
+        if (!state.hospitalId) { AdminToast.error("اول یک بیمارستان را انتخاب کنید."); return; }
 
-        await api("/admin/departments", {
-            method: "POST",
-            body: JSON.stringify({
-                hospital_id: state.hospitalId,
-                name: name,
-                department_type_id: departmentTypeId,
-            }),
-        });
-        document.getElementById("new-department-name").value = "";
-        newDepartmentTypeSelect.value = "";
-        await loadDepartments(state.hospitalId);
+        try {
+            await api("/admin/departments", {
+                method: "POST",
+                body: JSON.stringify({ hospital_id: state.hospitalId, name: name, department_type_id: departmentTypeId }),
+            });
+            document.getElementById("new-department-name").value = "";
+            newDepartmentTypeSelect.value = "";
+            AdminToast.success("بخش اضافه شد.");
+            await loadDepartments(state.hospitalId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    document.getElementById("edit-department-btn").addEventListener("click", async function () {
+        if (!state.departmentId) return;
+        const opt = departmentSelect.options[departmentSelect.selectedIndex];
+        const currentName = opt.text.split(" (")[0];
+        const currentTypeId = "";
+
+        const typeOptions = [{ value: "", label: "— عمومی —" }].concat(
+            allDepartmentTypes.map(function (t) { return { value: t.id, label: t.name }; })
+        );
+
+        const result = await AdminModal.form("ویرایش بخش", [
+            { name: "name", label: "نام بخش", value: currentName },
+            { name: "department_type_id", label: "نوع بخش", value: currentTypeId, type: "select", options: typeOptions },
+        ]);
+        if (!result || !result.name) return;
+
+        try {
+            await api(`/admin/departments/${state.departmentId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ name: result.name, department_type_id: result.department_type_id || null }),
+            });
+            AdminToast.success("بخش ویرایش شد.");
+            await loadDepartments(state.hospitalId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    document.getElementById("toggle-department-btn").addEventListener("click", async function () {
+        if (!state.departmentId) return;
+        const opt = departmentSelect.options[departmentSelect.selectedIndex];
+        const isCurrentlyActive = !opt.text.includes("[غیرفعال]");
+        const endpoint = isCurrentlyActive ? "deactivate" : "reactivate";
+        try {
+            await api(`/admin/departments/${state.departmentId}/${endpoint}`, { method: "POST" });
+            AdminToast.success("وضعیت بخش تغییر کرد.");
+            await loadDepartments(state.hospitalId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
     });
 
     (async function init() {

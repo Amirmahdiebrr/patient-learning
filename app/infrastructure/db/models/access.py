@@ -9,9 +9,13 @@ across hospitals.
 Design notes:
 - QRAccessPoint.access_token is the only secret embedded in a printed
   QR code. It must be long, random and unguessable (never sequential).
-- PatientAccessProfile has NO personally identifiable information.
-  It exists purely so per-device progress/favorites/quiz-attempts can
-  be tracked without real patient authentication.
+- PatientAccessProfile itself has NO personally identifiable
+  information - it exists purely so per-device progress/favorites/
+  quiz-attempts can be tracked without real patient authentication.
+  Real identity (name, national ID, phone) lives in the separate,
+  optional PatientRegistration table (one-to-one), kept apart so the
+  device-tracking mechanism stays PII-free at its core even though
+  most hospitals will now also collect a PatientRegistration.
 - StandardDepartmentType is a fixed lookup (seeded once via
   scripts/seed_department_types.py) representing the standard Iranian
   hospital department taxonomy. Department.department_type_id links a
@@ -136,9 +140,12 @@ class QRAccessPoint(Base):
 
 class PatientAccessProfile(Base):
     """
-    Anonymous, device-bound profile. No PII. Created on first QR scan
-    and persisted via a long-lived cookie so progress/favorites/quiz
-    attempts can be attributed to "this device" without real auth.
+    Anonymous, device-bound profile. Core fields carry NO PII by
+    design. Created on first QR scan and persisted via a long-lived
+    cookie so progress/favorites/quiz-attempts can be attributed to
+    "this device" without real auth. May optionally have a linked
+    PatientRegistration row (one-to-one) holding real identity/contact
+    info once the hospital collects it.
     """
     __tablename__ = "patient_access_profiles"
 
@@ -149,3 +156,6 @@ class PatientAccessProfile(Base):
 
     first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    qr_access_point = relationship("QRAccessPoint")
+    registration = relationship("PatientRegistration", back_populates="patient_access_profile", uselist=False)

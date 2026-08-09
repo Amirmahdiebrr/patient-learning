@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}پنل مدیریت | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="text-align:center; margin-top:24px;">
+        <h1>پنل مدیریت CuraLink</h1>
+        <p class="cl-sub">از اینجا محتوای آموزشی، بیمارستان‌ها و گزارش بیماران را مدیریت کنید.</p>
+    </div>
+
+    <div class="cl-admin-home-grid">
+        <a href="/admin/panel" class="cl-admin-home-card">
+            <span class="cl-admin-home-icon">📚</span>
+            <h3>سازنده‌ی محتوای آموزشی</h3>
+            <p>ساخت درس، مدیا و آزمون؛ اتصال بخش‌ها به بیمارستان‌ها.</p>
+        </a>
+
+        <a href="/admin/patients" class="cl-admin-home-card">
+            <span class="cl-admin-home-icon">🧑‍⚕️</span>
+            <h3>گزارش بیماران</h3>
+            <p>لیست بیماران ثبت‌نام‌شده، اطلاعات تماس و مرحله‌ی فعلی آن‌ها.</p>
+        </a>
+
+        <a href="/admin/panel#hospitals" class="cl-admin-home-card">
+            <span class="cl-admin-home-icon">🏥</span>
+            <h3>بیمارستان‌ها و بخش‌ها</h3>
+            <p>ساخت بیمارستان جدید، افزودن بخش و اتصال QR ورودی.</p>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const token = localStorage.getItem("curalink_admin_token");
+    if (!token) window.location.href = "/admin/login";
+})();
+</script>
+{% endblock %}

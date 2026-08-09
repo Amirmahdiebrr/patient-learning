@@ -31,6 +31,9 @@ async def ask_ai(prompt: str) -> str:
     Sends a single-turn prompt to the configured AI provider and
     returns the raw text response. Retries once on timeout/5xx.
     """
+    if not settings.AI_API_KEY:
+        raise AIProviderError("سرویس هوش مصنوعی هنوز پیکربندی نشده است.")
+
     headers = {
         "Authorization": f"Bearer {settings.AI_API_KEY}",
         "Content-Type": "application/json",

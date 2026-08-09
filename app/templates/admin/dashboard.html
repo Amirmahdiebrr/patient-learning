@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}داشبورد | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="margin-top:24px;">
+        <div class="cl-field">
+            <label>بیمارستان</label>
+            <select id="dash-hospital-select"><option value="">— انتخاب کنید —</option></select>
+        </div>
+    </div>
+
+    <div id="dash-content" style="display:none;">
+
+        <div class="cl-dash-stat-grid">
+            <div class="cl-dash-stat-card">
+                <span class="cl-dash-stat-label">بیماران جدید امروز</span>
+                <span class="cl-dash-stat-value" id="stat-new-patients">—</span>
+            </div>
+            <div class="cl-dash-stat-card">
+                <span class="cl-dash-stat-label">ترخیص‌شده (۳۰ روز اخیر)</span>
+                <span class="cl-dash-stat-value" id="stat-discharged">—</span>
+            </div>
+            <div class="cl-dash-stat-card">
+                <span class="cl-dash-stat-label">نرخ تکمیل درس‌ها</span>
+                <span class="cl-dash-stat-value" id="stat-lesson-completion">—</span>
+            </div>
+            <div class="cl-dash-stat-card">
+                <span class="cl-dash-stat-label">نرخ موفقیت آزمون</span>
+                <span class="cl-dash-stat-value" id="stat-quiz-success">—</span>
+            </div>
+            <div class="cl-dash-stat-card">
+                <span class="cl-dash-stat-label">میانگین زمان تکمیل درس</span>
+                <span class="cl-dash-stat-value" id="stat-avg-time">—</span>
+            </div>
+        </div>
+
+        <div class="cl-card cl-admin-card">
+            <h2 class="cl-admin-h2">پربازدیدترین درس‌ها</h2>
+            <div id="dash-top-lessons"></div>
+        </div>
+
+        <div class="cl-card cl-admin-card">
+            <h2 class="cl-admin-h2">توزیع بیماران در مراحل سفر درمانی</h2>
+            <div id="dash-stage-distribution"></div>
+        </div>
+
+    </div>
+
+    <div id="dash-empty" class="cl-card cl-admin-card">
+        <p class="cl-admin-empty">برای مشاهده‌ی آمار، ابتدا یک بیمارستان انتخاب کنید.</p>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const TOKEN_KEY = "curalink_admin_token";
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) { window.location.href = "/admin/login"; return; }
+
+    async function api(path) {
+        const res = await fetch(path, { headers: { "Authorization": "Bearer " + token } });
+        if (res.status === 401) {
+            localStorage.removeItem(TOKEN_KEY);
+            window.location.href = "/admin/login";
+            throw new Error("unauthorized");
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "خطا");
+        return data;
+    }
+
+    const STAGE_LABELS = {
+        welcome: "خوش‌آمدگویی",
+        admission: "پذیرش در بخش",
+        before_procedure: "قبل از عمل", procedure: "حین عمل",
+        after_procedure: "بعد از عمل", daily_inpatient: "بستری روزانه", discharge: "ترخیص",
+        home_care: "مراقبت در منزل", follow_up: "پیگیری", long_term_monitoring: "پایش بلندمدت",
+    };
+
+    const hospitalSelect = document.getElementById("dash-hospital-select");
+    const dashContent = document.getElementById("dash-content");
+    const dashEmpty = document.getElementById("dash-empty");
+
+    async function loadHospitals() {
+        const hospitals = await api("/admin/hospitals");
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${h.name}</option>`; }).join("");
+    }
+
+    async function loadDashboard(hospitalId) {
+        if (!hospitalId) {
+            dashContent.style.display = "none";
+            dashEmpty.style.display = "block";
+            return;
+        }
+
+        const summary = await api(`/admin/analytics/dashboard-summary?hospital_id=${hospitalId}`);
+
+        document.getElementById("stat-new-patients").textContent = summary.today_new_patients;
+        document.getElementById("stat-discharged").textContent = summary.discharged_last_30_days;
+        document.getElementById("stat-lesson-completion").textContent = summary.lesson_completion.completion_rate_percent + "%";
+        document.getElementById("stat-quiz-success").textContent = summary.quiz_success.success_rate_percent + "%";
+        document.getElementById("stat-avg-time").textContent = summary.average_completion_time_hours !== null
+            ? summary.average_completion_time_hours + " ساعت" : "—";
+
+        const topLessonsEl = document.getElementById("dash-top-lessons");
+        topLessonsEl.innerHTML = summary.most_viewed_lessons.length === 0
+            ? '<p class="cl-admin-empty">هنوز داده‌ای ثبت نشده.</p>'
+            : summary.most_viewed_lessons.map(function (l) {
+                return `<div class="cl-admin-mini-item"><span>${l.title}</span><strong>${l.view_count} بازدید</strong></div>`;
+            }).join("");
+
+        const stageEl = document.getElementById("dash-stage-distribution");
+        stageEl.innerHTML = summary.stage_distribution.length === 0
+            ? '<p class="cl-admin-empty">هنوز داده‌ای ثبت نشده.</p>'
+            : summary.stage_distribution.map(function (s) {
+                return `<div class="cl-admin-mini-item"><span>${STAGE_LABELS[s.stage] || s.stage}</span><strong>${s.count} بیمار</strong></div>`;
+            }).join("");
+
+        dashEmpty.style.display = "none";
+        dashContent.style.display = "block";
+    }
+
+    hospitalSelect.addEventListener("change", function () {
+        loadDashboard(hospitalSelect.value);
+    });
+
+    (async function init() {
+        await loadHospitals();
+    })();
+})();
+</script>
+{% endblock %}

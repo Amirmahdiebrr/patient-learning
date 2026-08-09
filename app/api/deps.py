@@ -1,7 +1,11 @@
 """
 app/api/deps.py
 
-FastAPI dependencies shared across patient-facing routers.
+FastAPI dependencies shared across patient-facing routers. Also
+populates the per-request logging context (hospital_id,
+department_id, patient_id) as soon as the access gate resolves them,
+so every log line emitted for the rest of this request automatically
+carries that context.
 """
 
 from dataclasses import dataclass
@@ -12,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.exceptions import AccessGateError
+from app.core.request_context import hospital_id_var, department_id_var, patient_id_var
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import QRAccessPoint, PatientAccessProfile, PatientJourneyProfile
 from app.services import access_gate_service
@@ -60,6 +65,10 @@ def get_access_context(request: Request, db: Session = Depends(get_db)) -> Acces
         # cookies together), but fail closed rather than silently
         # creating a new profile mid-session.
         raise AccessGateError("missing_patient_profile")
+
+    hospital_id_var.set(str(qr_access_point.hospital_id))
+    department_id_var.set(str(qr_access_point.department_id))
+    patient_id_var.set(str(patient_profile.id))
 
     return AccessContext(qr_access_point=qr_access_point, patient_profile=patient_profile)
 

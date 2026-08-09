@@ -1,12 +1,8 @@
 """
 app/schemas/content_admin.py
 
-Pydantic v2 DTOs for admin content management (Disease, Treatment,
-EducationSection, Lesson, MediaAsset, QuizQuestion/QuizOption,
-ContentTargetingRule). EducationSection content is a SHARED LIBRARY
-keyed by (journey_stage, department_type) - not tied to a specific
-hospital. Any hospital whose Department is linked to that
-department_type automatically receives the content.
+Pydantic v2 DTOs for admin content management, including hospital
+override lessons.
 """
 
 import uuid
@@ -17,8 +13,6 @@ from pydantic import BaseModel, Field, field_validator
 def slugify(value: str) -> str:
     return "-".join(value.strip().lower().split())
 
-
-# ---- Disease ----
 
 class DiseaseCreateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=255)
@@ -34,8 +28,6 @@ class DiseaseResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
-# ---- Treatment ----
 
 class TreatmentCreateRequest(BaseModel):
     disease_id: uuid.UUID
@@ -54,8 +46,6 @@ class TreatmentResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ---- JourneyStage (read-only, fixed lookup) ----
-
 class JourneyStageResponse(BaseModel):
     id: uuid.UUID
     code: str
@@ -65,14 +55,19 @@ class JourneyStageResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ---- EducationSection ----
-
 class EducationSectionCreateRequest(BaseModel):
     journey_stage_id: uuid.UUID
     department_type_id: uuid.UUID | None = None
     treatment_id: uuid.UUID | None = None
     title: str = Field(min_length=2, max_length=255)
     display_order: int = 0
+
+
+class EducationSectionUpdateRequest(BaseModel):
+    journey_stage_id: uuid.UUID
+    department_type_id: uuid.UUID | None = None
+    treatment_id: uuid.UUID | None = None
+    title: str = Field(min_length=2, max_length=255)
 
 
 class EducationSectionResponse(BaseModel):
@@ -84,11 +79,10 @@ class EducationSectionResponse(BaseModel):
     title: str
     display_order: int
     is_active: bool
+    lesson_count: int = 0
 
     model_config = {"from_attributes": True}
 
-
-# ---- Lesson ----
 
 class LessonCreateRequest(BaseModel):
     section_id: uuid.UUID
@@ -98,6 +92,11 @@ class LessonCreateRequest(BaseModel):
     is_published: bool = False
 
 
+class LessonUpdateRequest(BaseModel):
+    title: str = Field(min_length=2, max_length=255)
+    body_richtext: str | None = None
+
+
 class LessonResponse(BaseModel):
     id: uuid.UUID
     section_id: uuid.UUID
@@ -105,15 +104,35 @@ class LessonResponse(BaseModel):
     body_richtext: str | None
     display_order: int
     is_published: bool
+    override_level: str = "global"
+    parent_lesson_id: uuid.UUID | None = None
+    hospital_id: uuid.UUID | None = None
 
     model_config = {"from_attributes": True}
 
 
-# ---- MediaAsset ----
+class LessonSearchResultResponse(BaseModel):
+    id: uuid.UUID
+    section_id: uuid.UUID
+    title: str
+    body_snippet: str | None
+    is_published: bool
+    journey_stage_name: str
+    department_type_name: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class HospitalOverrideCreateRequest(BaseModel):
+    hospital_id: uuid.UUID
+    title: str = Field(min_length=2, max_length=255)
+    body_richtext: str | None = None
+    is_published: bool = False
+
 
 class MediaAssetCreateRequest(BaseModel):
     lesson_id: uuid.UUID
-    type: str  # "video" | "image" | "pdf" | "animation"
+    type: str
     file_url: str = Field(min_length=1, max_length=1024)
     thumbnail_url: str | None = None
     duration_seconds: int | None = Field(default=None, ge=0)
@@ -140,7 +159,11 @@ class MediaAssetResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ---- Quiz ----
+class MediaUploadResponse(BaseModel):
+    url: str
+    original_filename: str
+    size_bytes: int
+
 
 class QuizOptionCreateRequest(BaseModel):
     option_text: str = Field(min_length=1, max_length=500)
@@ -181,8 +204,6 @@ class QuizQuestionResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
-# ---- ContentTargetingRule (optional fine-grained override) ----
 
 class ContentTargetingRuleCreateRequest(BaseModel):
     lesson_id: uuid.UUID

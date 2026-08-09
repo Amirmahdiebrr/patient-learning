@@ -62,7 +62,6 @@
 {% block scripts %}
 <script>
 (function () {
-    // --- Favorite toggle ---
     const favBtn = document.getElementById("fav-btn");
     let isFavorite = {{ 'true' if is_favorite else 'false' }};
 
@@ -78,7 +77,6 @@
         }
     });
 
-    // --- Mark as completed ---
     const completeBtn = document.getElementById("complete-btn");
     completeBtn.addEventListener("click", async function () {
         const lessonId = completeBtn.dataset.lessonId;
@@ -93,7 +91,6 @@
         }
     });
 
-    // --- Quiz answering ---
     document.querySelectorAll(".cl-quiz-question").forEach(function (questionEl) {
         const questionId = questionEl.dataset.questionId;
         const resultEl = questionEl.querySelector(".cl-quiz-result");

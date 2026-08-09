@@ -1,19 +1,19 @@
 """
 main.py
-
-Application entrypoint. Wires routers, static files, templates, and
-the global exception handler that turns AccessGateError into the
-"please scan the hospital QR code" landing page instead of a raw
-401/403 response.
 """
+
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
+from app.core.config import settings
 from app.core.logging_config import setup_logging, get_logger
 from app.core.exceptions import AccessGateError
 from app.core.templates import templates
-from app.infrastructure.db.session import Base, engine
+from app.services.event_handlers import register_all_event_handlers
+from app.api.middleware.logging_middleware import RequestLoggingMiddleware
+from app.api.middleware.security_headers_middleware import SecurityHeadersMiddleware
 
 from app.api.v1.entry import router as entry_router
 from app.api.v1.welcome import router as welcome_router
@@ -26,6 +26,12 @@ from app.api.v1.admin_users import router as admin_users_router
 from app.api.v1.admin_hospitals import router as admin_hospitals_router
 from app.api.v1.admin_qr import router as admin_qr_router
 from app.api.v1.admin_content import router as admin_content_router
+from app.api.v1.admin_media_upload import router as admin_media_upload_router
+from app.api.v1.admin_patient_report import router as admin_patient_report_router
+from app.api.v1.admin_audit_log import router as admin_audit_log_router
+from app.api.v1.admin_patient_journey import router as admin_patient_journey_router
+from app.api.v1.admin_followup import router as admin_followup_router
+from app.api.v1.admin_analytics import router as admin_analytics_router
 from app.api.v1.admin_panel import router as admin_panel_router
 
 setup_logging()
@@ -33,28 +39,29 @@ logger = get_logger(__name__)
 
 app = FastAPI(title="CuraLink Patient Education Platform", version="0.1.0")
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+
+os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-app.include_router(entry_router)
-app.include_router(welcome_router)
-app.include_router(onboarding_router)
-app.include_router(patient_home_router)
-app.include_router(patient_lessons_router)
-app.include_router(assistant_router)
-app.include_router(admin_auth_router)
-app.include_router(admin_users_router)
-app.include_router(admin_hospitals_router)
-app.include_router(admin_qr_router)
-app.include_router(admin_content_router)
-app.include_router(admin_panel_router)
+ALL_ROUTERS = [
+    entry_router, welcome_router, onboarding_router, patient_home_router,
+    patient_lessons_router, assistant_router, admin_auth_router, admin_users_router,
+    admin_hospitals_router, admin_qr_router, admin_content_router, admin_media_upload_router,
+    admin_patient_report_router, admin_audit_log_router, admin_patient_journey_router,
+    admin_followup_router, admin_analytics_router, admin_panel_router,
+]
+
+for router in ALL_ROUTERS:
+    app.include_router(router)
 
 
 @app.exception_handler(AccessGateError)
 async def access_gate_exception_handler(request: Request, exc: AccessGateError):
     logger.info(f"[AccessGate] Blocked request to {request.url.path}: {exc.reason}")
-    return templates.TemplateResponse(
-        request, "scan_required.html", {"request": request}, status_code=403
-    )
+    return templates.TemplateResponse(request, "scan_required.html", {"request": request}, status_code=403)
 
 
 @app.get("/")
@@ -70,9 +77,10 @@ async def root_redirect_to_scan_notice(request: Request):
 @app.on_event("startup")
 async def on_startup():
     logger.info("CuraLink Patient Education Platform starting up.")
+    register_all_event_handlers()
+    logger.info("[EventBus] Domain event handlers registered.")
     # NOTE: Base.metadata.create_all() is intentionally NOT called here.
-    # Schema changes must go through Alembic migrations once the DB is
-    # provisioned - see alembic/ directory.
+    # Schema changes must go through Alembic migrations - see alembic/.
 
 
 if __name__ == "__main__":

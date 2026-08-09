@@ -1,0 +1,22 @@
+<div class="cl-admin-nav">
+    <a href="/admin/home" class="cl-admin-nav-link {% if active_page == 'home' %}cl-admin-nav-link-active{% endif %}">
+        🏠 خانه
+    </a>
+    <a href="/admin/dashboard" class="cl-admin-nav-link {% if active_page == 'dashboard' %}cl-admin-nav-link-active{% endif %}">
+        📊 داشبورد
+    </a>
+    <a href="/admin/panel" class="cl-admin-nav-link {% if active_page == 'content' %}cl-admin-nav-link-active{% endif %}">
+        📚 سازنده‌ی محتوا
+    </a>
+    <a href="/admin/patients" class="cl-admin-nav-link {% if active_page == 'patients' %}cl-admin-nav-link-active{% endif %}">
+        🧑‍⚕️ گزارش بیماران
+    </a>
+    <button id="admin-logout-btn" class="cl-admin-nav-link cl-admin-nav-logout">خروج</button>
+</div>
+
+<script>
+document.getElementById("admin-logout-btn").addEventListener("click", function () {
+    localStorage.removeItem("curalink_admin_token");
+    window.location.href = "/admin/login";
+});
+</script>

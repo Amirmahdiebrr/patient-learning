@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = Field(default=20)
 
     # ==========================
-    # Cache (Redis) - used for QR access-point lookups only in phase 1
+    # Cache (Redis)
     # ==========================
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
 
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     ACCESS_COOKIE_NAME: str = Field(default="curalink_access_token")
     PATIENT_PROFILE_COOKIE_NAME: str = Field(default="curalink_patient_profile")
     ACCESS_COOKIE_SECRET: str = Field(default="CHANGE_ME_IN_PRODUCTION_ENV")
-    ACCESS_TOKEN_BYTES: int = Field(default=32)  # length of raw random QR token before encoding
+    ACCESS_TOKEN_BYTES: int = Field(default=32)
 
     # ==========================
     # AI Patient Assistant
@@ -63,11 +63,22 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 12)
 
-# ==========================
+    # ==========================
     # Bootstrap (one-time super_admin creation via seed script)
     # ==========================
     BOOTSTRAP_SUPER_ADMIN_EMAIL: str = Field(default="")
     BOOTSTRAP_SUPER_ADMIN_PASSWORD: str = Field(default="")
+
+    # ==========================
+    # Media Upload
+    # ==========================
+    MEDIA_UPLOAD_DIR: str = Field(default="app/static/uploads")
+    MEDIA_MAX_UPLOAD_MB: int = Field(default=25)
+
+    # ==========================
+    # Field-level encryption (patient PII: national_id, phone, insurance)
+    # ==========================
+    ENCRYPTION_KEY: str = Field(default="")
 
     @property
     def is_production(self) -> bool:

@@ -20,6 +20,10 @@ class HospitalCreateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=255)
 
 
+class HospitalUpdateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+
+
 class HospitalResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -31,6 +35,11 @@ class HospitalResponse(BaseModel):
 
 class DepartmentCreateRequest(BaseModel):
     hospital_id: uuid.UUID
+    name: str = Field(min_length=2, max_length=255)
+    department_type_id: uuid.UUID | None = None
+
+
+class DepartmentUpdateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     department_type_id: uuid.UUID | None = None
 

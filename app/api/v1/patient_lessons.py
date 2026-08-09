@@ -4,6 +4,9 @@ app/api/v1/patient_lessons.py
 Patient-facing lesson detail page + progress/favorite/quiz-attempt
 endpoints. All state keyed to patient_access_profile_id (anonymous
 device profile) - never to any real identity.
+
+Publishes LessonCompleted when progress transitions to "completed",
+and QuizCompleted on every quiz attempt submission.
 """
 
 import uuid
@@ -13,6 +16,8 @@ from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core.event_bus import event_bus
+from app.core.events import LessonCompleted, QuizCompleted
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
     Lesson, ProgressRecord, LessonProgressStatus, FavoriteRecord,
@@ -116,6 +121,7 @@ async def update_progress(
         db.add(progress)
 
     new_status = LessonProgressStatus(payload.status)
+    was_already_completed = progress.status == LessonProgressStatus.COMPLETED
     progress.status = new_status
 
     if new_status == LessonProgressStatus.IN_PROGRESS and not progress.started_at:
@@ -125,6 +131,12 @@ async def update_progress(
 
     db.commit()
     db.refresh(progress)
+
+    if new_status == LessonProgressStatus.COMPLETED and not was_already_completed:
+        event_bus.publish(LessonCompleted(
+            patient_access_profile_id=context.patient_profile.id,
+            lesson_id=lesson_id,
+        ))
 
     return JSONResponse({"status": progress.status.value})
 
@@ -205,6 +217,12 @@ async def submit_quiz_attempt(
     )
     db.add(attempt)
     db.commit()
+
+    event_bus.publish(QuizCompleted(
+        patient_access_profile_id=context.patient_profile.id,
+        question_id=question_id,
+        is_correct=option.is_correct,
+    ))
 
     correct_option = next((o for o in question.options if o.is_correct), None)
 

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}گزارش بیماران | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card">
+        <h1>گزارش بیماران ثبت‌نام‌شده</h1>
+        <p class="cl-sub">لیست بیمارانی که از طریق QR وارد شده و اطلاعات خود را ثبت کرده‌اند.</p>
+
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label>بیمارستان</label>
+                <select id="report-hospital-select"><option value="">— انتخاب کنید —</option></select>
+            </div>
+            <div class="cl-field">
+                <label>بخش (اختیاری)</label>
+                <select id="report-department-select"><option value="">— همه‌ی بخش‌ها —</option></select>
+            </div>
+        </div>
+
+        <div class="cl-admin-inline-form">
+            <input type="text" id="report-search-input" placeholder="جستجو با نام، کد ملی یا شماره همراه...">
+            <select id="report-stage-select"><option value="">— همه‌ی مراحل —</option></select>
+            <button id="report-search-btn" class="cl-btn cl-btn-sm">اعمال فیلتر</button>
+        </div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h2 class="cl-admin-h2" style="margin:0;">نتایج</h2>
+            <span id="report-total-count" style="font-size:13px; color:#8CA0B3;"></span>
+        </div>
+        <div id="report-table-wrap" class="cl-admin-table-wrap">
+            <p class="cl-admin-empty">برای مشاهده، ابتدا یک بیمارستان انتخاب کنید.</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const TOKEN_KEY = "curalink_admin_token";
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+        window.location.href = "/admin/login";
+        return;
+    }
+
+    async function api(path, options) {
+        options = options || {};
+        options.headers = Object.assign(
+            { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) {
+            localStorage.removeItem(TOKEN_KEY);
+            window.location.href = "/admin/login";
+            throw new Error("unauthorized");
+        }
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    const hospitalSelect = document.getElementById("report-hospital-select");
+    const departmentSelect = document.getElementById("report-department-select");
+    const stageSelect = document.getElementById("report-stage-select");
+    const searchInput = document.getElementById("report-search-input");
+    const tableWrap = document.getElementById("report-table-wrap");
+    const totalCountEl = document.getElementById("report-total-count");
+
+    const STAGES = [
+        ["welcome", "خوش‌آمدگویی"],
+        ["admission", "پذیرش در بخش"],
+        ["before_procedure", "قبل از عمل"],
+        ["procedure", "حین عمل"],
+        ["after_procedure", "بعد از عمل"],
+        ["daily_inpatient", "آموزش روزانه‌ی بستری"],
+        ["discharge", "ترخیص"],
+        ["home_care", "مراقبت در منزل"],
+        ["follow_up", "پیگیری"],
+        ["long_term_monitoring", "پایش بلندمدت"],
+    ];
+    stageSelect.innerHTML = '<option value="">— همه‌ی مراحل —</option>' +
+        STAGES.map(function (s) { return `<option value="${s[0]}">${s[1]}</option>`; }).join("");
+
+    async function loadHospitals() {
+        const hospitals = await api("/admin/hospitals");
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${h.name}</option>`; }).join("");
+    }
+
+    async function loadDepartments(hospitalId) {
+        const departments = await api(`/admin/hospitals/${hospitalId}/departments`);
+        departmentSelect.innerHTML = '<option value="">— همه‌ی بخش‌ها —</option>' +
+            departments.map(function (d) { return `<option value="${d.id}">${d.name}</option>`; }).join("");
+    }
+
+    function genderLabel(g) {
+        if (g === "male") return "مرد";
+        if (g === "female") return "زن";
+        if (g === "other") return "سایر";
+        return "—";
+    }
+
+    function surgeryLabel(v) {
+        if (v === true) return "بله";
+        if (v === false) return "خیر";
+        return "—";
+    }
+
+    function formatDate(iso) {
+        try {
+            return new Date(iso).toLocaleString("fa-IR");
+        } catch (e) {
+            return iso;
+        }
+    }
+
+    async function runReport() {
+        const hospitalId = hospitalSelect.value;
+        if (!hospitalId) {
+            tableWrap.innerHTML = '<p class="cl-admin-empty">ابتدا یک بیمارستان انتخاب کنید.</p>';
+            totalCountEl.textContent = "";
+            return;
+        }
+
+        tableWrap.innerHTML = '<p class="cl-admin-empty">در حال بارگذاری...</p>';
+
+        let url = `/admin/patient-report?hospital_id=${hospitalId}`;
+        if (departmentSelect.value) url += `&department_id=${departmentSelect.value}`;
+        if (stageSelect.value) url += `&stage_code=${stageSelect.value}`;
+        if (searchInput.value.trim()) url += `&search=${encodeURIComponent(searchInput.value.trim())}`;
+
+        try {
+            const result = await api(url);
+            totalCountEl.textContent = `${result.total} نتیجه`;
+
+            if (result.rows.length === 0) {
+                tableWrap.innerHTML = '<p class="cl-admin-empty">بیماری با این مشخصات پیدا نشد.</p>';
+                return;
+            }
+
+            let html = `<table class="cl-admin-table">
+                <thead>
+                    <tr>
+                        <th>نام</th>
+                        <th>کد ملی</th>
+                        <th>شماره همراه</th>
+                        <th>کد بیمه</th>
+                        <th>بخش</th>
+                        <th>بیماری/درمان</th>
+                        <th>عمل جراحی</th>
+                        <th>سن / جنسیت</th>
+                        <th>مرحله‌ی فعلی</th>
+                        <th>وضعیت</th>
+                        <th>تاریخ ثبت‌نام</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            result.rows.forEach(function (r) {
+                const conditionText = [r.disease_name, r.treatment_name].filter(Boolean).join(" / ") || "—";
+                const statusBadge = r.onboarding_completed
+                    ? '<span class="cl-admin-badge cl-admin-badge-live">تکمیل‌شده</span>'
+                    : '<span class="cl-admin-badge cl-admin-badge-draft">ناقص</span>';
+
+                html += `<tr>
+                    <td>${r.first_name} ${r.last_name}</td>
+                    <td>${r.national_id}</td>
+                    <td dir="ltr">${r.phone_number}</td>
+                    <td>${r.insurance_code || "—"}</td>
+                    <td>${r.department_name}</td>
+                    <td>${conditionText}</td>
+                    <td>${surgeryLabel(r.has_surgery)}</td>
+                    <td>${r.age ?? "—"} / ${genderLabel(r.gender)}</td>
+                    <td>${r.current_stage_name}</td>
+                    <td>${statusBadge}</td>
+                    <td>${formatDate(r.registered_at)}</td>
+                </tr>`;
+            });
+
+            html += "</tbody></table>";
+            tableWrap.innerHTML = html;
+        } catch (err) {
+            tableWrap.innerHTML = `<p class="cl-admin-empty">خطا: ${err.message}</p>`;
+        }
+    }
+
+    hospitalSelect.addEventListener("change", async function () {
+        if (hospitalSelect.value) {
+            await loadDepartments(hospitalSelect.value);
+        } else {
+            departmentSelect.innerHTML = '<option value="">— همه‌ی بخش‌ها —</option>';
+        }
+        await runReport();
+    });
+
+    departmentSelect.addEventListener("change", runReport);
+    document.getElementById("report-search-btn").addEventListener("click", runReport);
+    searchInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") runReport();
+    });
+
+    (async function init() {
+        await loadHospitals();
+    })();
+})();
+</script>
+{% endblock %}

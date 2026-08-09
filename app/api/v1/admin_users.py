@@ -2,16 +2,23 @@
 app/api/v1/admin_users.py
 
 super_admin-only endpoints to create new admin users and assign them
-roles scoped to a hospital/department. This is the missing piece that
-lets a super_admin onboard hospital_admin/department_admin/doctor/
+roles scoped to a hospital/department. This is the piece that lets a
+super_admin onboard hospital_admin/department_admin/doctor/
 content_manager accounts without touching the DB directly.
+
+Publishes AdminAccessAction for admin-user create/deactivate and
+role-assignment create/delete - these govern WHO can access WHAT,
+which is a different (and more sensitive) audit surface than content
+edits.
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.event_bus import event_bus
+from app.core.events import AdminAccessAction
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
     AdminUser, AdminRoleAssignment, Role, RoleCode, Hospital, Department,
@@ -28,6 +35,10 @@ router = APIRouter(prefix="/admin", tags=["admin_users"])
 require_super_admin = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN,))
 
 
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
 def _to_assignment_response(a: AdminRoleAssignment) -> RoleAssignmentResponse:
     return RoleAssignmentResponse(
         id=a.id,
@@ -42,6 +53,7 @@ def _to_assignment_response(a: AdminRoleAssignment) -> RoleAssignmentResponse:
 @router.post("/admin-users", response_model=AdminUserResponse)
 async def create_admin_user(
     payload: AdminUserCreateRequest,
+    request: Request,
     admin: AdminUser = Depends(require_super_admin()),
     db: Session = Depends(get_db),
 ):
@@ -58,6 +70,17 @@ async def create_admin_user(
     db.add(new_admin)
     db.commit()
     db.refresh(new_admin)
+
+    event_bus.publish(AdminAccessAction(
+        admin_id=admin.id,
+        action="create_admin",
+        object_type="admin_user",
+        object_id=new_admin.id,
+        before=None,
+        after={"email": new_admin.email, "full_name": new_admin.full_name},
+        ip_address=_client_ip(request),
+    ))
+
     return new_admin
 
 
@@ -72,6 +95,7 @@ async def list_admin_users(
 @router.post("/admin-users/{admin_user_id}/deactivate", response_model=AdminUserResponse)
 async def deactivate_admin_user(
     admin_user_id: uuid.UUID,
+    request: Request,
     admin: AdminUser = Depends(require_super_admin()),
     db: Session = Depends(get_db),
 ):
@@ -82,12 +106,24 @@ async def deactivate_admin_user(
     target.is_active = False
     db.commit()
     db.refresh(target)
+
+    event_bus.publish(AdminAccessAction(
+        admin_id=admin.id,
+        action="deactivate_admin",
+        object_type="admin_user",
+        object_id=target.id,
+        before={"is_active": True},
+        after={"is_active": False},
+        ip_address=_client_ip(request),
+    ))
+
     return target
 
 
 @router.post("/role-assignments", response_model=RoleAssignmentResponse)
 async def create_role_assignment(
     payload: RoleAssignmentCreateRequest,
+    request: Request,
     admin: AdminUser = Depends(require_super_admin()),
     db: Session = Depends(get_db),
 ):
@@ -139,6 +175,22 @@ async def create_role_assignment(
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
+
+    event_bus.publish(AdminAccessAction(
+        admin_id=admin.id,
+        action="assign_role",
+        object_type="role_assignment",
+        object_id=assignment.id,
+        before=None,
+        after={
+            "admin_user_id": str(payload.admin_user_id),
+            "role_code": payload.role_code,
+            "hospital_id": str(payload.hospital_id) if payload.hospital_id else None,
+            "department_id": str(payload.department_id) if payload.department_id else None,
+        },
+        ip_address=_client_ip(request),
+    ))
+
     return _to_assignment_response(assignment)
 
 
@@ -159,11 +211,31 @@ async def list_role_assignments(
 @router.delete("/role-assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_role_assignment(
     assignment_id: uuid.UUID,
+    request: Request,
     admin: AdminUser = Depends(require_super_admin()),
     db: Session = Depends(get_db),
 ):
     assignment = db.query(AdminRoleAssignment).filter(AdminRoleAssignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "این نقش پیدا نشد.")
+
+    snapshot = {
+        "admin_user_id": str(assignment.admin_user_id),
+        "role_code": assignment.role.code.value,
+        "hospital_id": str(assignment.hospital_id) if assignment.hospital_id else None,
+        "department_id": str(assignment.department_id) if assignment.department_id else None,
+    }
+    assignment_id_copy = assignment.id
+
     db.delete(assignment)
     db.commit()
+
+    event_bus.publish(AdminAccessAction(
+        admin_id=admin.id,
+        action="revoke_role",
+        object_type="role_assignment",
+        object_id=assignment_id_copy,
+        before=snapshot,
+        after=None,
+        ip_address=_client_ip(request),
+    ))

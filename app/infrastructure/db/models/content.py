@@ -1,21 +1,16 @@
 """
 app/infrastructure/db/models/content.py
 
-Educational content domain: Disease, Treatment, JourneyStage,
-EducationSection, Lesson, MediaAsset, QuizQuestion, QuizOption.
+Educational content domain. Content resolution priority:
+Hospital Override > Standard Department Content (department_type_id
+on EducationSection) > Global Content (department_type_id NULL).
 
-Design notes:
-- JourneyStage is a fixed lookup table (11 rows, seeded once), NOT
-  per-treatment. Every treatment reuses the same stage vocabulary.
-- EducationSection.treatment_id is nullable: some sections are
-  general (hospital-wide) education, not tied to a specific treatment.
-- EducationSection.department_type_id is nullable and links to the
-  standard department taxonomy (StandardDepartmentType), NOT to a
-  specific hospital's Department row. This makes content a shared
-  library: build it once per department type (e.g. "Orthopedics"),
-  and it automatically applies to every hospital that has a
-  Department of that type - no per-hospital linking needed.
-  NULL means "general education shown regardless of department type".
+Lesson.override_level + parent_lesson_id + hospital_id implement the
+hospital-level override tier: a Lesson with override_level=HOSPITAL
+and parent_lesson_id set replaces its parent's content ONLY for
+patients in that specific hospital, without duplicating the section/
+targeting-rule structure - see content_targeting_service.py for the
+resolution logic.
 """
 
 import uuid
@@ -53,6 +48,11 @@ class MediaType(str, PyEnum):
     ANIMATION = "animation"
 
 
+class LessonOverrideLevel(str, PyEnum):
+    GLOBAL = "global"
+    HOSPITAL = "hospital"
+
+
 class Disease(Base):
     __tablename__ = "diseases"
 
@@ -87,10 +87,6 @@ class Treatment(Base):
 
 
 class JourneyStage(Base):
-    """
-    Fixed lookup table, seeded once via migration/seed script.
-    Do not create these dynamically from admin panel in phase 1.
-    """
     __tablename__ = "journey_stages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -136,13 +132,19 @@ class Lesson(Base):
     display_order = Column(Integer, nullable=False, default=0)
     is_published = Column(Boolean, default=False, nullable=False)
 
+    override_level = Column(Enum(LessonOverrideLevel), nullable=False, default=LessonOverrideLevel.GLOBAL)
+    parent_lesson_id = Column(UUID(as_uuid=True), ForeignKey("lessons.id"), nullable=True, index=True)
+    hospital_id = Column(UUID(as_uuid=True), ForeignKey("hospitals.id"), nullable=True, index=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     section = relationship("EducationSection", back_populates="lessons")
     media_assets = relationship("MediaAsset", back_populates="lesson", order_by="MediaAsset.display_order", cascade="all, delete-orphan")
     quiz_questions = relationship("QuizQuestion", back_populates="lesson", cascade="all, delete-orphan")
-    targeting_rules = relationship("ContentTargetingRule", back_populates="lesson")
+    targeting_rules = relationship("ContentTargetingRule", back_populates="lesson", cascade="all, delete-orphan")
+    parent_lesson = relationship("Lesson", remote_side=[id], backref="hospital_overrides")
+    hospital = relationship("Hospital")
 
 
 class MediaAsset(Base):
@@ -189,16 +191,6 @@ class QuizOption(Base):
 
 
 class ContentTargetingRule(Base):
-    """
-    Fine-grained OPTIONAL override on top of the department_type match:
-    a lesson can have MULTIPLE rules for extra filtering by age/gender/
-    disease/treatment, or to further restrict to one specific hospital
-    or one specific Department row (rarely needed now that
-    EducationSection.department_type_id handles the common case).
-    A lesson is shown if AT LEAST ONE of its rules matches; a lesson
-    with zero rules is shown to everyone matching the structural
-    (journey_stage + department_type) layer.
-    """
     __tablename__ = "content_targeting_rules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -211,7 +203,7 @@ class ContentTargetingRule(Base):
 
     min_age = Column(Integer, nullable=True)
     max_age = Column(Integer, nullable=True)
-    gender = Column(String(10), nullable=True)  # "male" | "female" | "other" | null (any)
+    gender = Column(String(10), nullable=True)
 
     priority = Column(Integer, nullable=False, default=0)
 

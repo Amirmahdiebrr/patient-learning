@@ -2,7 +2,7 @@
 scripts/seed_lookup_data.py
 
 One-time (idempotent) seed script:
-- journey_stages: fixed 12-row lookup table (never created via admin panel)
+- journey_stages: fixed 10-row lookup table (never created via admin panel)
 - roles: fixed 5-row lookup table
 - optionally bootstraps the first super_admin from env vars
 
@@ -28,19 +28,23 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+# NOTE: GENERAL_EDUCATION and DEPARTMENT_INTRO were merged into
+# ADMISSION (renamed "پذیرش در بخش") via migration
+# 6c4f2b8e9a1d_merge_general_education_department_intro_into_admission.
+# They are intentionally NOT seeded here anymore. The enum members
+# still exist in JourneyStageCode for backward-compat safety, but no
+# journey_stages row should be created for them.
 JOURNEY_STAGES = [
     (JourneyStageCode.WELCOME, "خوش‌آمدگویی", 1),
-    (JourneyStageCode.GENERAL_EDUCATION, "آموزش عمومی بیمارستان", 2),
-    (JourneyStageCode.DEPARTMENT_INTRO, "معرفی بخش", 3),
-    (JourneyStageCode.ADMISSION, "بستری / پذیرش", 4),
-    (JourneyStageCode.BEFORE_PROCEDURE, "قبل از عمل", 5),
-    (JourneyStageCode.PROCEDURE, "حین عمل", 6),
-    (JourneyStageCode.AFTER_PROCEDURE, "بعد از عمل", 7),
-    (JourneyStageCode.DAILY_INPATIENT, "آموزش روزانه‌ی بستری", 8),
-    (JourneyStageCode.DISCHARGE, "ترخیص", 9),
-    (JourneyStageCode.HOME_CARE, "مراقبت در منزل", 10),
-    (JourneyStageCode.FOLLOW_UP, "پیگیری", 11),
-    (JourneyStageCode.LONG_TERM_MONITORING, "پایش بلندمدت", 12),
+    (JourneyStageCode.ADMISSION, "پذیرش در بخش", 2),
+    (JourneyStageCode.BEFORE_PROCEDURE, "قبل از عمل", 3),
+    (JourneyStageCode.PROCEDURE, "حین عمل", 4),
+    (JourneyStageCode.AFTER_PROCEDURE, "بعد از عمل", 5),
+    (JourneyStageCode.DAILY_INPATIENT, "آموزش روزانه‌ی بستری", 6),
+    (JourneyStageCode.DISCHARGE, "ترخیص", 7),
+    (JourneyStageCode.HOME_CARE, "مراقبت در منزل", 8),
+    (JourneyStageCode.FOLLOW_UP, "پیگیری", 9),
+    (JourneyStageCode.LONG_TERM_MONITORING, "پایش بلندمدت", 10),
 ]
 
 ROLES = [
