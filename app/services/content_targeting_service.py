@@ -1,17 +1,19 @@
 """
 app/services/content_targeting_service.py
 
-Resolves published lessons for a patient journey through:
-1. Structural match (journey_stage + department_type, general or
-   treatment-specific).
-2. Hospital-level override resolution FIRST: if a HOSPITAL-scoped
-   override Lesson exists for the base lesson and current hospital,
-   it fully replaces the base lesson - independent of whether the
-   base lesson itself is published. This lets a hospital publish its
-   own override even while the shared global lesson stays in draft.
-3. Optional ContentTargetingRule filtering (age/gender/disease/
-   treatment), evaluated on whichever lesson (base or override) is
-   ultimately shown.
+Resolves published lessons AND stage-level quiz questions for a
+patient journey.
+
+Lessons: structural match (journey_stage + department_type) with
+hospital-level override resolution and optional ContentTargetingRule
+filtering - see get_lessons_for_journey.
+
+Stage quiz: a simpler match - QuizQuestion.journey_stage matches the
+patient's current stage, AND (department_type_id is NULL [general] OR
+matches the patient's department type). No hospital-override or
+targeting-rule layer for quiz questions (not requested / not needed
+yet) - keep it simple until a real need for per-hospital quiz
+overrides shows up.
 """
 
 import uuid
@@ -25,6 +27,7 @@ from app.infrastructure.db.models import (
     ContentTargetingRule,
     PatientJourneyProfile,
     LessonOverrideLevel,
+    QuizQuestion,
 )
 
 
@@ -121,3 +124,22 @@ def get_lessons_for_journey(
                 matched_lessons.append(effective_lesson)
 
     return matched_lessons
+
+
+def get_stage_quiz_for_journey(
+    db: Session,
+    journey: PatientJourneyProfile,
+    department_type_id: uuid.UUID | None,
+) -> list[QuizQuestion]:
+    return (
+        db.query(QuizQuestion)
+        .filter(
+            QuizQuestion.journey_stage.has(code=journey.current_stage),
+            or_(
+                QuizQuestion.department_type_id.is_(None),
+                QuizQuestion.department_type_id == department_type_id,
+            ),
+        )
+        .order_by(QuizQuestion.display_order)
+        .all()
+    )

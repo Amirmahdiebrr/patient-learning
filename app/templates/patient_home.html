@@ -20,6 +20,31 @@
         {% endif %}
     </div>
 
+    {% if stage_quiz_questions %}
+    <div class="cl-card">
+        <h2 style="color:var(--navy); font-size:18px; margin-bottom:18px;">آزمون این مرحله</h2>
+        {% for q in stage_quiz_questions %}
+        <div class="cl-quiz-question" data-question-id="{{ q.id }}">
+            {% if q.question_image_url %}
+            <img src="{{ q.question_image_url }}" class="cl-quiz-image">
+            {% endif %}
+            <p class="cl-quiz-text">{{ q.question_text }}</p>
+            <div class="cl-quiz-options">
+                {% for opt in q.options %}
+                <button class="cl-quiz-option" data-option-id="{{ opt.id }}">
+                    {% if opt.option_image_url %}
+                    <img src="{{ opt.option_image_url }}" class="cl-quiz-option-image">
+                    {% endif %}
+                    <span>{{ opt.option_text }}</span>
+                </button>
+                {% endfor %}
+            </div>
+            <p class="cl-quiz-result" style="display:none;"></p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="cl-chat-box" id="assistant-box">
         <div style="padding:18px 24px; border-bottom:1px solid var(--line); font-weight:700; color:var(--navy);">
             💬 دستیار آموزشی — سوالات عمومی خود را اینجا بپرسید
@@ -76,6 +101,40 @@
         } catch (err) {
             addMessage("ai", "ارتباط با سرور برقرار نشد.");
         }
+    });
+
+    document.querySelectorAll(".cl-quiz-question").forEach(function (questionEl) {
+        const questionId = questionEl.dataset.questionId;
+        const resultEl = questionEl.querySelector(".cl-quiz-result");
+        const optionButtons = questionEl.querySelectorAll(".cl-quiz-option");
+
+        optionButtons.forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                if (questionEl.dataset.answered === "true") return;
+
+                const res = await fetch(`/quiz-questions/${questionId}/attempt`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ option_id: btn.dataset.optionId }),
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                questionEl.dataset.answered = "true";
+                optionButtons.forEach(function (b) {
+                    b.disabled = true;
+                    if (b.dataset.optionId === data.correct_option_id) {
+                        b.classList.add("cl-quiz-option-correct");
+                    } else if (b === btn) {
+                        b.classList.add("cl-quiz-option-wrong");
+                    }
+                });
+
+                resultEl.style.display = "block";
+                resultEl.textContent = data.is_correct ? "✓ پاسخ درست بود." : "✗ پاسخ نادرست بود.";
+                resultEl.className = "cl-quiz-result " + (data.is_correct ? "cl-quiz-result-correct" : "cl-quiz-result-wrong");
+            });
+        });
     });
 })();
 </script>

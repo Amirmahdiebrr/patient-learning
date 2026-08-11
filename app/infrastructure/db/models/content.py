@@ -11,6 +11,16 @@ and parent_lesson_id set replaces its parent's content ONLY for
 patients in that specific hospital, without duplicating the section/
 targeting-rule structure - see content_targeting_service.py for the
 resolution logic.
+
+QuizQuestion can now target EITHER a single Lesson (lesson_id set)
+OR an entire JourneyStage (journey_stage_id set), never both. A
+stage-level question can optionally be scoped to one
+StandardDepartmentType (department_type_id) the same way
+EducationSection is scoped - NULL means "shown for every department
+type at that stage". Both the question and each QuizOption may carry
+an optional image_url for image-based quizzes. Option count is not
+fixed - any number of QuizOption rows (validated 2-10 at the API
+layer) is allowed.
 """
 
 import uuid
@@ -28,8 +38,8 @@ from app.infrastructure.db.session import Base
 
 class JourneyStageCode(str, PyEnum):
     WELCOME = "welcome"
-    GENERAL_EDUCATION = "general_education"
-    DEPARTMENT_INTRO = "department_intro"
+    GENERAL_EDUCATION = "general_education"  # legacy, merged into ADMISSION
+    DEPARTMENT_INTRO = "department_intro"    # legacy, merged into ADMISSION
     ADMISSION = "admission"
     BEFORE_PROCEDURE = "before_procedure"
     PROCEDURE = "procedure"
@@ -87,6 +97,10 @@ class Treatment(Base):
 
 
 class JourneyStage(Base):
+    """
+    Fixed lookup table, seeded once via migration/seed script.
+    Do not create these dynamically from admin panel in phase 1.
+    """
     __tablename__ = "journey_stages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -168,12 +182,27 @@ class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lesson_id = Column(UUID(as_uuid=True), ForeignKey("lessons.id"), nullable=False, index=True)
+
+    # Exactly ONE of these two is set (enforced at the API/schema
+    # layer, not at the DB level, to keep this compatible with older
+    # SQLite-style constraints and to give clearer error messages).
+    lesson_id = Column(UUID(as_uuid=True), ForeignKey("lessons.id"), nullable=True, index=True)
+    journey_stage_id = Column(UUID(as_uuid=True), ForeignKey("journey_stages.id"), nullable=True, index=True)
+
+    # Only meaningful when journey_stage_id is set - same semantics as
+    # EducationSection.department_type_id (NULL = shown for every
+    # department type at that stage).
+    department_type_id = Column(
+        UUID(as_uuid=True), ForeignKey("standard_department_types.id"), nullable=True, index=True
+    )
 
     question_text = Column(Text, nullable=False)
+    question_image_url = Column(String(1024), nullable=True)
     display_order = Column(Integer, nullable=False, default=0)
 
     lesson = relationship("Lesson", back_populates="quiz_questions")
+    journey_stage = relationship("JourneyStage")
+    department_type = relationship("StandardDepartmentType")
     options = relationship("QuizOption", back_populates="question", order_by="QuizOption.display_order", cascade="all, delete-orphan")
 
 
@@ -184,6 +213,7 @@ class QuizOption(Base):
     question_id = Column(UUID(as_uuid=True), ForeignKey("quiz_questions.id"), nullable=False, index=True)
 
     option_text = Column(String(500), nullable=False)
+    option_image_url = Column(String(1024), nullable=True)
     is_correct = Column(Boolean, default=False, nullable=False)
     display_order = Column(Integer, nullable=False, default=0)
 
@@ -191,6 +221,16 @@ class QuizOption(Base):
 
 
 class ContentTargetingRule(Base):
+    """
+    Fine-grained OPTIONAL override on top of the department_type match:
+    a lesson can have MULTIPLE rules for extra filtering by age/gender/
+    disease/treatment, or to further restrict to one specific hospital
+    or one specific Department row (rarely needed now that
+    EducationSection.department_type_id handles the common case).
+    A lesson is shown if AT LEAST ONE of its rules matches; a lesson
+    with zero rules is shown to everyone matching the structural
+    (journey_stage + department_type) layer.
+    """
     __tablename__ = "content_targeting_rules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -203,7 +243,7 @@ class ContentTargetingRule(Base):
 
     min_age = Column(Integer, nullable=True)
     max_age = Column(Integer, nullable=True)
-    gender = Column(String(10), nullable=True)
+    gender = Column(String(10), nullable=True)  # "male" | "female" | "other" | null (any)
 
     priority = Column(Integer, nullable=False, default=0)
 

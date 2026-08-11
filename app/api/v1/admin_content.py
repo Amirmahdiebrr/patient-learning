@@ -1,5 +1,26 @@
 """
 app/api/v1/admin_content.py
+
+Admin CRUD for the SHARED educational content library: Disease ->
+Treatment, and JourneyStage -> EducationSection -> Lesson ->
+MediaAsset / QuizQuestion / ContentTargetingRule. EducationSection is
+keyed by (journey_stage, department_type) - not by hospital - so
+building it once makes it available to every hospital that has a
+Department of that type. Only super_admin and content_manager may
+create/edit it.
+
+QuizQuestion now targets EITHER one Lesson OR an entire JourneyStage
+(optionally scoped to one department type) - see
+QuizQuestionCreateRequest's model validator for the exclusivity rule.
+Option count is flexible (2-10) and both the question and each option
+may carry an image URL.
+
+Deletion policy:
+- EducationSection: hard-deletable only while it has zero lessons
+  (otherwise 409 - delete/move the lessons first, or deactivate the
+  section instead).
+- Lesson: hard-deletable any time; MediaAsset/QuizQuestion/
+  ContentTargetingRule cascade automatically (see content.py model).
 """
 
 import uuid
@@ -69,6 +90,25 @@ def _lesson_snapshot(lesson: Lesson) -> dict:
     return {"title": lesson.title, "body_richtext": lesson.body_richtext, "is_published": lesson.is_published}
 
 
+def _to_quiz_response(question: QuizQuestion) -> QuizQuestionResponse:
+    return QuizQuestionResponse(
+        id=question.id,
+        lesson_id=question.lesson_id,
+        journey_stage_id=question.journey_stage_id,
+        journey_stage_name=question.journey_stage.name if question.journey_stage else None,
+        department_type_id=question.department_type_id,
+        department_type_name=question.department_type.name if question.department_type else None,
+        question_text=question.question_text,
+        question_image_url=question.question_image_url,
+        display_order=question.display_order,
+        options=question.options,
+    )
+
+
+# ==========================
+# Disease
+# ==========================
+
 @router.post("/diseases", response_model=DiseaseResponse)
 async def create_disease(
     payload: DiseaseCreateRequest,
@@ -86,6 +126,10 @@ async def create_disease(
 async def list_diseases(db: Session = Depends(get_db)):
     return db.query(Disease).filter(Disease.is_active.is_(True)).order_by(Disease.name).all()
 
+
+# ==========================
+# Treatment
+# ==========================
 
 @router.post("/treatments", response_model=TreatmentResponse)
 async def create_treatment(
@@ -116,6 +160,10 @@ async def list_treatments(disease_id: uuid.UUID, db: Session = Depends(get_db)):
     )
 
 
+# ==========================
+# JourneyStage
+# ==========================
+
 @router.get("/journey-stages", response_model=list[JourneyStageResponse])
 async def list_journey_stages(db: Session = Depends(get_db)):
     stages = db.query(JourneyStage).order_by(JourneyStage.display_order).all()
@@ -124,6 +172,10 @@ async def list_journey_stages(db: Session = Depends(get_db)):
         for s in stages
     ]
 
+
+# ==========================
+# EducationSection
+# ==========================
 
 @router.post("/education-sections", response_model=EducationSectionResponse)
 async def create_education_section(
@@ -310,6 +362,10 @@ async def delete_education_section(
         before=before, after=None, ip_address=_client_ip(request),
     ))
 
+
+# ==========================
+# Lesson
+# ==========================
 
 @router.post("/lessons", response_model=LessonResponse)
 async def create_lesson(
@@ -545,6 +601,10 @@ async def list_hospital_overrides(
     return db.query(Lesson).filter(Lesson.parent_lesson_id == lesson_id).order_by(Lesson.created_at.desc()).all()
 
 
+# ==========================
+# MediaAsset
+# ==========================
+
 @router.post("/media-assets", response_model=MediaAssetResponse)
 async def create_media_asset(
     payload: MediaAssetCreateRequest,
@@ -584,36 +644,88 @@ async def delete_media_asset(
     db.commit()
 
 
+# ==========================
+# Quiz (lesson-scoped OR stage-scoped)
+# ==========================
+
 @router.post("/quiz-questions", response_model=QuizQuestionResponse)
 async def create_quiz_question(
     payload: QuizQuestionCreateRequest,
     admin: AdminUser = Depends(require_content_editor()),
     db: Session = Depends(get_db),
 ):
-    lesson = db.query(Lesson).filter(Lesson.id == payload.lesson_id).first()
-    if not lesson:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "درس پیدا نشد.")
+    if payload.lesson_id:
+        lesson = db.query(Lesson).filter(Lesson.id == payload.lesson_id).first()
+        if not lesson:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "درس پیدا نشد.")
+
+    if payload.journey_stage_id:
+        stage = db.query(JourneyStage).filter(JourneyStage.id == payload.journey_stage_id).first()
+        if not stage:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "مرحله‌ی سفر بیمار پیدا نشد.")
+
+    if payload.department_type_id:
+        dept_type = db.query(StandardDepartmentType).filter(
+            StandardDepartmentType.id == payload.department_type_id
+        ).first()
+        if not dept_type:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "نوع بخش استاندارد پیدا نشد.")
 
     question = QuizQuestion(
-        lesson_id=payload.lesson_id, question_text=payload.question_text, display_order=payload.display_order,
+        lesson_id=payload.lesson_id,
+        journey_stage_id=payload.journey_stage_id,
+        department_type_id=payload.department_type_id,
+        question_text=payload.question_text,
+        question_image_url=payload.question_image_url,
+        display_order=payload.display_order,
     )
     db.add(question)
     db.flush()
 
     for i, opt in enumerate(payload.options):
         db.add(QuizOption(
-            question_id=question.id, option_text=opt.option_text, is_correct=opt.is_correct,
+            question_id=question.id,
+            option_text=opt.option_text,
+            option_image_url=opt.option_image_url,
+            is_correct=opt.is_correct,
             display_order=opt.display_order or i,
         ))
 
     db.commit()
     db.refresh(question)
-    return question
+    return _to_quiz_response(question)
 
 
 @router.get("/lessons/{lesson_id}/quiz-questions", response_model=list[QuizQuestionResponse])
 async def list_quiz_questions(lesson_id: uuid.UUID, db: Session = Depends(get_db)):
-    return db.query(QuizQuestion).filter(QuizQuestion.lesson_id == lesson_id).order_by(QuizQuestion.display_order).all()
+    questions = (
+        db.query(QuizQuestion)
+        .filter(QuizQuestion.lesson_id == lesson_id)
+        .order_by(QuizQuestion.display_order)
+        .all()
+    )
+    return [_to_quiz_response(q) for q in questions]
+
+
+@router.get("/stage-quiz-questions", response_model=list[QuizQuestionResponse])
+async def list_stage_quiz_questions(
+    journey_stage_id: uuid.UUID,
+    department_type_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(QuizQuestion).filter(QuizQuestion.journey_stage_id == journey_stage_id)
+
+    if department_type_id == "general":
+        query = query.filter(QuizQuestion.department_type_id.is_(None))
+    elif department_type_id:
+        try:
+            parsed_type_id = uuid.UUID(department_type_id)
+        except ValueError:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "شناسه‌ی نوع بخش نامعتبر است.")
+        query = query.filter(QuizQuestion.department_type_id == parsed_type_id)
+
+    questions = query.order_by(QuizQuestion.display_order).all()
+    return [_to_quiz_response(q) for q in questions]
 
 
 @router.delete("/quiz-questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -628,6 +740,10 @@ async def delete_quiz_question(
     db.delete(question)
     db.commit()
 
+
+# ==========================
+# ContentTargetingRule (optional fine-grained override)
+# ==========================
 
 @router.post("/content-targeting-rules", response_model=ContentTargetingRuleResponse)
 async def create_content_targeting_rule(

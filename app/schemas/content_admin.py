@@ -2,12 +2,13 @@
 app/schemas/content_admin.py
 
 Pydantic v2 DTOs for admin content management, including hospital
-override lessons.
+override lessons and quiz questions (lesson-scoped OR stage-scoped,
+with flexible option counts and optional images).
 """
 
 import uuid
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def slugify(value: str) -> str:
@@ -165,8 +166,11 @@ class MediaUploadResponse(BaseModel):
     size_bytes: int
 
 
+# ---- Quiz (lesson-scoped OR stage-scoped, flexible options, images) ----
+
 class QuizOptionCreateRequest(BaseModel):
     option_text: str = Field(min_length=1, max_length=500)
+    option_image_url: str | None = None
     is_correct: bool = False
     display_order: int = 0
 
@@ -174,6 +178,7 @@ class QuizOptionCreateRequest(BaseModel):
 class QuizOptionResponse(BaseModel):
     id: uuid.UUID
     option_text: str
+    option_image_url: str | None
     is_correct: bool
     display_order: int
 
@@ -181,10 +186,13 @@ class QuizOptionResponse(BaseModel):
 
 
 class QuizQuestionCreateRequest(BaseModel):
-    lesson_id: uuid.UUID
+    lesson_id: uuid.UUID | None = None
+    journey_stage_id: uuid.UUID | None = None
+    department_type_id: uuid.UUID | None = None
     question_text: str = Field(min_length=2)
+    question_image_url: str | None = None
     display_order: int = 0
-    options: list[QuizOptionCreateRequest] = Field(min_length=2, max_length=8)
+    options: list[QuizOptionCreateRequest] = Field(min_length=2, max_length=10)
 
     @field_validator("options")
     @classmethod
@@ -194,16 +202,31 @@ class QuizQuestionCreateRequest(BaseModel):
             raise ValueError("دقیقاً یک گزینه باید is_correct=true باشد.")
         return value
 
+    @model_validator(mode="after")
+    def validate_exactly_one_target(self):
+        if bool(self.lesson_id) == bool(self.journey_stage_id):
+            raise ValueError("باید دقیقاً یکی از lesson_id (سوال درسی) یا journey_stage_id (سوال مرحله‌ای) مشخص شود.")
+        if self.department_type_id and not self.journey_stage_id:
+            raise ValueError("department_type_id فقط برای سوالات مرحله‌ای معنا دارد.")
+        return self
+
 
 class QuizQuestionResponse(BaseModel):
     id: uuid.UUID
-    lesson_id: uuid.UUID
+    lesson_id: uuid.UUID | None
+    journey_stage_id: uuid.UUID | None
+    journey_stage_name: str | None = None
+    department_type_id: uuid.UUID | None
+    department_type_name: str | None = None
     question_text: str
+    question_image_url: str | None
     display_order: int
     options: list[QuizOptionResponse]
 
     model_config = {"from_attributes": True}
 
+
+# ---- ContentTargetingRule (optional fine-grained override) ----
 
 class ContentTargetingRuleCreateRequest(BaseModel):
     lesson_id: uuid.UUID
