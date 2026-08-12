@@ -3,15 +3,13 @@ app/infrastructure/db/models/patient_registration.py
 
 Optional identity/contact info collected right after QR entry, on top
 of the anonymous PatientAccessProfile. national_id, phone_number, and
-insurance_code are encrypted at rest via EncryptedString - encryption
-and decryption happen transparently on every write/read, no service
-or route code touches ciphertext directly.
+insurance_code are encrypted at rest via EncryptedString.
 
-national_id_hash is a deterministic HMAC-SHA256 digest of national_id
-(see app/core/encryption.hash_lookup_value), stored alongside the
-encrypted value purely to allow exact-match lookups (e.g. matching an
-incoming PatientReferral to this patient) without decrypting every
-row in the table.
+national_id_hash / phone_number_hash are deterministic HMAC-SHA256
+digests (see app/core/encryption.blind_index) stored alongside the
+encrypted values purely to allow exact-match lookups (e.g. matching
+an incoming PatientReferral, or searching the admin patient report by
+national ID/phone) without decrypting every row in the table.
 """
 
 import uuid
@@ -40,6 +38,7 @@ class PatientRegistration(Base):
     national_id = Column(EncryptedString(255), nullable=False)
     national_id_hash = Column(String(64), nullable=True, index=True)
     phone_number = Column(EncryptedString(255), nullable=False)
+    phone_number_hash = Column(String(64), nullable=True, index=True)
     insurance_code = Column(EncryptedString(255), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

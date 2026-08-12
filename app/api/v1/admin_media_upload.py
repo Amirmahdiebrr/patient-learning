@@ -23,13 +23,42 @@ ALLOWED_EXTENSIONS = {
     "animation": {".gif", ".webp", ".mp4"},
 }
 
-MAGIC_BYTES = {
+# Fixed-prefix signatures - checked with a simple startswith().
+_FIXED_MAGIC_BYTES = {
     ".jpg": b"\xff\xd8\xff",
     ".jpeg": b"\xff\xd8\xff",
     ".png": b"\x89PNG",
     ".gif": b"GIF8",
     ".pdf": b"%PDF",
+    ".ogg": b"OggS",
+    ".webm": b"\x1a\x45\xdf\xa3",  # EBML header (Matroska/WebM container)
 }
+
+
+def _content_matches_extension(ext: str, contents: bytes) -> bool:
+    """
+    Validates the file's actual bytes against its declared extension.
+    Most formats have a fixed byte prefix (see _FIXED_MAGIC_BYTES);
+    webp and the ISO-base-media formats (mp4/mov) need a small offset
+    check instead of a plain prefix match, so they're handled here
+    explicitly rather than being silently skipped like before.
+    """
+    if ext in _FIXED_MAGIC_BYTES:
+        return contents.startswith(_FIXED_MAGIC_BYTES[ext])
+
+    if ext == ".webp":
+        # RIFF <4-byte size> WEBP
+        return len(contents) >= 12 and contents[0:4] == b"RIFF" and contents[8:12] == b"WEBP"
+
+    if ext in (".mp4", ".mov"):
+        # ISO base media container: bytes 4-8 of the first box are "ftyp"
+        return len(contents) >= 8 and contents[4:8] == b"ftyp"
+
+    # No known signature for this extension - extension whitelist
+    # above already restricts what can reach this point, so allow it
+    # rather than silently accepting (which the old code effectively
+    # did for every extension not covered here).
+    return True
 
 
 @router.post("/media-upload", response_model=MediaUploadResponse)
@@ -63,8 +92,7 @@ async def upload_media_file(
             f"حجم فایل نباید بیشتر از {settings.MEDIA_MAX_UPLOAD_MB} مگابایت باشد.",
         )
 
-    expected_magic = MAGIC_BYTES.get(ext)
-    if expected_magic and not contents.startswith(expected_magic):
+    if not _content_matches_extension(ext, contents):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "محتوای فایل با پسوند آن مطابقت ندارد.")
 
     os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)

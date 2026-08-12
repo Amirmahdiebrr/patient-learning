@@ -90,6 +90,7 @@ async def onboarding_submit(
     registration.national_id = national_id
     registration.national_id_hash = hash_lookup_value(national_id)
     registration.phone_number = phone_number
+    registration.phone_number_hash = hash_lookup_value(phone_number)
     registration.insurance_code = insurance_code.strip() if insurance_code else None
 
     journey.disease_id = disease_id or None

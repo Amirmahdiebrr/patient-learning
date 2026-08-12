@@ -18,8 +18,11 @@
 </div>
 
 <script>
-document.getElementById("admin-logout-btn").addEventListener("click", function () {
-    localStorage.removeItem("curalink_admin_token");
-    window.location.href = "/admin/login";
+document.getElementById("admin-logout-btn").addEventListener("click", async function () {
+    try {
+        await fetch("/admin/auth/logout", { method: "POST", credentials: "same-origin" });
+    } finally {
+        window.location.href = "/admin/login";
+    }
 });
 </script>

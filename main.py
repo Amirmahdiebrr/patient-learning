@@ -26,6 +26,7 @@ from app.api.v1.admin_users import router as admin_users_router
 from app.api.v1.admin_hospitals import router as admin_hospitals_router
 from app.api.v1.admin_qr import router as admin_qr_router
 from app.api.v1.admin_content import router as admin_content_router
+from app.api.v1.admin_lesson_draft import router as admin_lesson_draft_router
 from app.api.v1.admin_media_upload import router as admin_media_upload_router
 from app.api.v1.admin_patient_report import router as admin_patient_report_router
 from app.api.v1.admin_audit_log import router as admin_audit_log_router
@@ -51,10 +52,10 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 ALL_ROUTERS = [
     entry_router, welcome_router, onboarding_router, patient_home_router,
     patient_lessons_router, assistant_router, admin_auth_router, admin_users_router,
-    admin_hospitals_router, admin_qr_router, admin_content_router, admin_media_upload_router,
-    admin_patient_report_router, admin_audit_log_router, admin_patient_journey_router,
-    admin_followup_router, admin_analytics_router, admin_referrals_router,
-    referrals_public_router, admin_panel_router,
+    admin_hospitals_router, admin_qr_router, admin_content_router, admin_lesson_draft_router,
+    admin_media_upload_router, admin_patient_report_router, admin_audit_log_router,
+    admin_patient_journey_router, admin_followup_router, admin_analytics_router,
+    admin_referrals_router, referrals_public_router, admin_panel_router,
 ]
 
 for router in ALL_ROUTERS:

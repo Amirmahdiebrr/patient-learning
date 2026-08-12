@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}ارجاعات بیمارستان | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
 {% block content %}
 <div class="cl-container cl-admin-container">
     {% include "admin/_nav.html" %}
@@ -97,18 +100,21 @@
 {% block scripts %}
 <script>
 (function () {
-    const TOKEN_KEY = "curalink_admin_token";
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) { window.location.href = "/admin/login"; return; }
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
     async function api(path, options) {
         options = options || {};
+        options.credentials = "same-origin";
         options.headers = Object.assign(
-            options.isFormData ? { "Authorization": "Bearer " + token } : { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            options.isFormData ? {} : { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
             options.headers || {}
         );
         const res = await fetch(path, options);
-        if (res.status === 401) { localStorage.removeItem(TOKEN_KEY); window.location.href = "/admin/login"; throw new Error("unauthorized"); }
+        if (res.status === 401) {
+            window.location.href = "/admin/login";
+            throw new Error("unauthorized");
+        }
         if (res.status === 204) return null;
         const data = await res.json().catch(function () { return null; });
         if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");

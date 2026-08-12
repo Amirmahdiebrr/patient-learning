@@ -30,12 +30,3 @@
     </div>
 </div>
 {% endblock %}
-
-{% block scripts %}
-<script>
-(function () {
-    const token = localStorage.getItem("curalink_admin_token");
-    if (!token) window.location.href = "/admin/login";
-})();
-</script>
-{% endblock %}
