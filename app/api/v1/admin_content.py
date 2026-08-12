@@ -9,6 +9,13 @@ building it once makes it available to every hospital that has a
 Department of that type. Only super_admin and content_manager may
 create/edit it.
 
+Hospital-scoped writes (hospital-override lessons, and targeting
+rules that name a specific hospital) additionally require
+ensure_hospital_access - otherwise a content_manager scoped only to
+hospital A could create/override content for hospital B, since
+require_content_editor only checks the ROLE, not which hospital that
+role is scoped to.
+
 QuizQuestion now targets EITHER one Lesson OR an entire JourneyStage
 (optionally scoped to one department type) - see
 QuizQuestionCreateRequest's model validator for the exclusivity rule.
@@ -53,6 +60,7 @@ from app.schemas.content_admin import (
 )
 from app.api.deps_admin import ScopeCheck
 from app.api.deps_common import client_ip
+from app.infrastructure.db.repositories.hospital_scoped_repository import ensure_hospital_access
 
 router = APIRouter(prefix="/admin", tags=["admin_content"])
 
@@ -559,6 +567,10 @@ async def create_hospital_override(
     if not hospital:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بیمارستان پیدا نشد.")
 
+    # content_manager یا سایر نقش‌های hospital-scoped فقط برای
+    # بیمارستان‌هایی که واقعاً بهشون اختصاص یافته‌اند مجاز به override‌اند.
+    ensure_hospital_access(admin, db, payload.hospital_id)
+
     existing = (
         db.query(Lesson)
         .filter(Lesson.parent_lesson_id == lesson_id, Lesson.hospital_id == payload.hospital_id)
@@ -756,6 +768,10 @@ async def create_content_targeting_rule(
         hospital = db.query(Hospital).filter(Hospital.id == payload.hospital_id).first()
         if not hospital:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "بیمارستان پیدا نشد.")
+
+        # فقط وقتی rule یک بیمارستان خاص رو هدف می‌گیره چک اسکوپ لازمه؛
+        # rule بدون hospital_id (عمومی) از قبل توسط require_content_editor کنترل شده.
+        ensure_hospital_access(admin, db, payload.hospital_id)
 
     if payload.department_id:
         dept_query = db.query(Department).filter(Department.id == payload.department_id)

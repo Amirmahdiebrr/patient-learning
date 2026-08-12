@@ -102,6 +102,15 @@ class ScopeCheck:
         return _check
 
 
+# نقش‌هایی که با اسکوپ روی یک بیمارستان مجاز به عملیات hospital-level هستند.
+# DOCTOR هم اینجا اضافه شد چون هنگام ساخت این نقش hospital_id اجباریه
+# (admin_users.py::scoped_roles) ولی قبلاً هیچ‌جا استفاده نمی‌شد.
+_HOSPITAL_SCOPED_ROLES = (
+    RoleCode.HOSPITAL_ADMIN, RoleCode.DEPARTMENT_ADMIN,
+    RoleCode.CONTENT_MANAGER, RoleCode.DOCTOR,
+)
+
+
 def require_hospital_scope(admin: AdminUser, db: Session, hospital_id: uuid.UUID) -> bool:
     assignments = (
         db.query(AdminRoleAssignment)
@@ -112,9 +121,7 @@ def require_hospital_scope(admin: AdminUser, db: Session, hospital_id: uuid.UUID
     for a in assignments:
         if a.role.code == RoleCode.SUPER_ADMIN and a.hospital_id is None:
             return True
-        if a.hospital_id == hospital_id and a.role.code in (
-            RoleCode.HOSPITAL_ADMIN, RoleCode.DEPARTMENT_ADMIN, RoleCode.CONTENT_MANAGER,
-        ):
+        if a.hospital_id == hospital_id and a.role.code in _HOSPITAL_SCOPED_ROLES:
             return True
 
     return False

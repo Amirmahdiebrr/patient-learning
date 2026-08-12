@@ -121,8 +121,6 @@
         return data;
     }
 
-    const STATUS_LABELS = { received: "دریافت‌شده", matched: "تطبیق‌یافته", reviewed: "بررسی‌شده" };
-
     const hospitalSelect = document.getElementById("ref-hospital-select");
     const refContent = document.getElementById("ref-content");
     const apiKeyList = document.getElementById("ref-api-key-list");
@@ -194,7 +192,6 @@
             const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
             return result.url;
         } catch (err) {
-            // Attachment might not be a PDF (e.g. an image) - try image type as fallback
             formData.set("media_type", "image");
             const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
             return result.url;
@@ -231,7 +228,7 @@
                 attachment_file_url: attachmentUrl,
             };
 
-            await api(`/admin/referrals?hospital_id=${currentHospitalId}`, {
+            await api(`/admin/hospital-referrals?hospital_id=${currentHospitalId}`, {
                 method: "POST",
                 body: JSON.stringify(payload),
             });
@@ -246,7 +243,7 @@
     });
 
     async function loadReferrals() {
-        let url = `/admin/referrals?hospital_id=${currentHospitalId}`;
+        let url = `/admin/hospital-referrals?hospital_id=${currentHospitalId}`;
         const statusFilter = document.getElementById("ref-status-filter").value;
         const search = document.getElementById("ref-search").value.trim();
         if (statusFilter) url += `&status_filter=${statusFilter}`;
@@ -284,7 +281,7 @@
         refList.querySelectorAll("[data-mark-reviewed]").forEach(function (btn) {
             btn.addEventListener("click", async function () {
                 try {
-                    await api(`/admin/referrals/${btn.dataset.markReviewed}/mark-reviewed`, { method: "POST" });
+                    await api(`/admin/hospital-referrals/${btn.dataset.markReviewed}/mark-reviewed`, { method: "POST" });
                     AdminToast.success("علامت‌گذاری شد.");
                     await loadReferrals();
                 } catch (err) {

@@ -3,6 +3,13 @@ app/api/v1/admin_referrals.py
 
 Admin-facing referral intake (manual entry), listing/review, and
 hospital API key management for the HIS integration path.
+
+Path note: this used to be GET/POST /admin/referrals, which collided
+with the HTML page route (GET /admin/referrals in admin_panel.py) -
+FastAPI resolves routers in registration order, so the API router
+(registered first in main.py) always won, and the HTML page never
+rendered. Renamed to /admin/hospital-referrals to remove the
+collision; admin/referrals.html's JS was updated to match.
 """
 
 import hashlib
@@ -30,7 +37,7 @@ from app.core.events import ReferralReceived
 router = APIRouter(prefix="/admin", tags=["admin_referrals"])
 
 
-@router.post("/referrals", response_model=ReferralResponse)
+@router.post("/hospital-referrals", response_model=ReferralResponse)
 async def create_manual_referral(
     hospital_id: uuid.UUID,
     payload: ReferralSubmitRequest,
@@ -90,7 +97,7 @@ async def create_manual_referral(
     return referral
 
 
-@router.get("/referrals", response_model=ReferralListResponse)
+@router.get("/hospital-referrals", response_model=ReferralListResponse)
 async def list_referrals(
     hospital_id: uuid.UUID,
     status_filter: str | None = None,
@@ -120,7 +127,7 @@ async def list_referrals(
     return ReferralListResponse(total=total, rows=rows)
 
 
-@router.post("/referrals/{referral_id}/mark-reviewed", response_model=ReferralResponse)
+@router.post("/hospital-referrals/{referral_id}/mark-reviewed", response_model=ReferralResponse)
 async def mark_referral_reviewed(
     referral_id: uuid.UUID,
     admin: AdminUser = Depends(get_current_admin),
