@@ -1,16 +1,13 @@
 """
 app/api/v1/welcome.py
-
-The very first screen a patient sees right after scanning the QR,
-before onboarding. Shows published lessons tagged for the WELCOME
-journey stage, then lets the patient move on to onboarding. The
-transition to ADMISSION goes through the journey state machine.
 """
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.csrf import verify_csrf, issue_csrf_cookie
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import PatientJourneyProfile, JourneyStageCode
 from app.api.deps import AccessContext, get_access_context, get_active_journey
@@ -41,7 +38,9 @@ async def welcome_page(
         department_type_id=department.department_type_id,
     )
 
-    return templates.TemplateResponse(
+    csrf_token = request.cookies.get(settings.CSRF_COOKIE_NAME)
+
+    response = templates.TemplateResponse(
         request,
         "welcome.html",
         {
@@ -49,16 +48,26 @@ async def welcome_page(
             "lessons": lessons,
             "hospital": context.qr_access_point.hospital,
             "department": department,
+            "csrf_token": csrf_token,
         },
     )
+
+    if not csrf_token:
+        issue_csrf_cookie(response, settings.CSRF_COOKIE_NAME)
+
+    return response
 
 
 @router.post("/welcome/continue")
 async def welcome_continue(
+    request: Request,
+    csrf_token: str = Form(...),
     context: AccessContext = Depends(get_access_context),
     journey: PatientJourneyProfile = Depends(get_active_journey),
     db: Session = Depends(get_db),
 ):
+    verify_csrf(request, settings.CSRF_COOKIE_NAME, csrf_token)
+
     try:
         transition_stage(
             db, journey, JourneyStageCode.ADMISSION,

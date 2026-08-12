@@ -37,6 +37,7 @@
         try {
             const res = await fetch("/admin/auth/login", {
                 method: "POST",
+                credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
@@ -48,7 +49,8 @@
                 return;
             }
 
-            localStorage.setItem("curalink_admin_token", data.access_token);
+            // No token to store - the server already set it as an
+            // httpOnly cookie. Just navigate in.
             window.location.href = "/admin/home";
         } catch (err) {
             errorEl.textContent = "ارتباط با سرور برقرار نشد.";

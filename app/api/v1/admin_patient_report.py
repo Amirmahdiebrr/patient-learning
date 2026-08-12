@@ -12,7 +12,7 @@ super_admin sees everyone.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
 
 from app.infrastructure.db.session import get_db
@@ -21,7 +21,9 @@ from app.infrastructure.db.models import (
     QRAccessPoint, Hospital, Department,
 )
 from app.schemas.patient_report import PatientReportRowResponse, PatientReportResponse
-from app.api.deps_admin import get_current_admin, require_hospital_scope
+from app.api.deps_admin import get_current_admin
+from app.infrastructure.db.repositories.hospital_scoped_repository import ensure_hospital_access
+from app.core.encryption import blind_index
 
 router = APIRouter(prefix="/admin", tags=["admin_patient_report"])
 
@@ -37,8 +39,7 @@ async def get_patient_report(
     admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    if not require_hospital_scope(admin, db, hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, hospital_id)
 
     query = (
         db.query(PatientRegistration)
@@ -61,13 +62,25 @@ async def get_patient_report(
         query = query.filter(QRAccessPoint.department_id == department_id)
 
     if search:
-        term = f"%{search.strip()}%"
-        query = query.filter(
-            (PatientRegistration.first_name.ilike(term))
-            | (PatientRegistration.last_name.ilike(term))
-            | (PatientRegistration.national_id.ilike(term))
-            | (PatientRegistration.phone_number.ilike(term))
-        )
+        term = search.strip()
+        # national_id / phone_number are encrypted at rest, so ILIKE
+        # can never match them - a plain substring search on
+        # ciphertext is meaningless. If the term is all digits, treat
+        # it as an exact national_id/phone_number lookup via the
+        # one-way blind index instead (see encryption.py::blind_index).
+        # Otherwise, fall back to a normal name search.
+        if term.isdigit():
+            digit_hash = blind_index(term)
+            query = query.filter(
+                (PatientRegistration.national_id_hash == digit_hash)
+                | (PatientRegistration.phone_number_hash == digit_hash)
+            )
+        else:
+            like_term = f"%{term}%"
+            query = query.filter(
+                (PatientRegistration.first_name.ilike(like_term))
+                | (PatientRegistration.last_name.ilike(like_term))
+            )
 
     total = query.count()
 
@@ -101,10 +114,6 @@ async def get_patient_report(
         if stage_code and (not journey or journey.current_stage.value != stage_code):
             continue
 
-        # NOTE: general_education and department_intro were merged
-        # into admission (see migration 6c4f2b8e9a1d) - not listed
-        # here since no active journey should carry those values
-        # anymore, but they're harmless to omit either way.
         stage_display_names = {
             "welcome": "خوش‌آمدگویی",
             "admission": "پذیرش در بخش",

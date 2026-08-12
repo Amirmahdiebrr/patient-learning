@@ -14,7 +14,8 @@ from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
     AdminUser, PatientAccessProfile, PatientJourneyProfile, JourneyStageCode,
 )
-from app.api.deps_admin import get_current_admin, require_hospital_scope
+from app.api.deps_admin import get_current_admin
+from app.infrastructure.db.repositories.hospital_scoped_repository import ensure_hospital_access
 from app.services.patient_journey_state_machine import transition_stage, InvalidStageTransitionError
 from app.schemas.patient_journey_admin import JourneyStageTransitionRequest, JourneyStageResponse
 
@@ -34,8 +35,7 @@ async def transition_patient_stage(
 
     hospital_id = profile.qr_access_point.hospital_id
 
-    if not require_hospital_scope(admin, db, hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, hospital_id)
 
     journey = (
         db.query(PatientJourneyProfile)

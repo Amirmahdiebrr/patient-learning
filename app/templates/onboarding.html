@@ -9,6 +9,7 @@
         </p>
 
         <form method="post" action="/onboarding">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
             <div class="cl-field">
                 <label for="first_name">نام</label>
@@ -85,7 +86,6 @@
             </div>
 
             <button type="submit" class="cl-btn">شروع مسیر آموزشی</button>
-
         </form>
     </div>
 </div>

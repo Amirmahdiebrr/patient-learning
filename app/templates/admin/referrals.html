@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}ارجاعات بیمارستان | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="margin-top:24px;">
+        <h1>ارجاعات بیمارستان</h1>
+        <p class="cl-sub">خلاصه پرونده بیمارانی که بیمارستان بعد از ترخیص به ما ارجاع داده — دستی یا از طریق سیستم بیمارستان (API).</p>
+
+        <div class="cl-field">
+            <label>بیمارستان</label>
+            <select id="ref-hospital-select"><option value="">— انتخاب کنید —</option></select>
+        </div>
+    </div>
+
+    <div id="ref-content" style="display:none;">
+
+        <div class="cl-card cl-admin-card">
+            <h2 class="cl-admin-h2">کلید API برای اتصال سیستم بیمارستان (HIS)</h2>
+            <p class="cl-sub">
+                بیمارستان می‌تواند با ارسال درخواست POST به آدرس <code>/api/v1/referrals</code> همراه با هدر
+                <code>X-API-Key</code>، ارجاع را مستقیم و خودکار ثبت کند.
+            </p>
+            <div id="ref-api-key-list" class="cl-admin-mini-list" style="margin-bottom:14px;"></div>
+            <div class="cl-admin-inline-form">
+                <input type="text" id="ref-api-key-label" placeholder="برچسب کلید (مثلاً: سیستم HIS اصلی)">
+                <button id="ref-create-api-key-btn" class="cl-btn cl-btn-sm">+ ساخت کلید API جدید</button>
+            </div>
+        </div>
+
+        <div class="cl-card cl-admin-card">
+            <h2 class="cl-admin-h2">ثبت دستی ارجاع جدید</h2>
+            <p class="cl-sub">همه‌ی فیلدها اختیاری هستند — هرچه بیمارستان در اختیار گذاشته را وارد کنید.</p>
+
+            <div class="cl-admin-row">
+                <div class="cl-field"><label>نام</label><input type="text" id="ref-first-name"></div>
+                <div class="cl-field"><label>نام خانوادگی</label><input type="text" id="ref-last-name"></div>
+            </div>
+            <div class="cl-admin-row">
+                <div class="cl-field"><label>کد ملی</label><input type="text" id="ref-national-id"></div>
+                <div class="cl-field"><label>شماره همراه</label><input type="text" id="ref-phone"></div>
+            </div>
+            <div class="cl-field"><label>کد بیمه</label><input type="text" id="ref-insurance"></div>
+
+            <div class="cl-field"><label>شکایت اصلی</label><textarea id="ref-chief-complaint" rows="2"></textarea></div>
+            <div class="cl-field"><label>تشخیص اصلی</label><textarea id="ref-primary-diagnosis" rows="2"></textarea></div>
+            <div class="cl-field"><label>تشخیص‌های ثانویه</label><textarea id="ref-secondary-diagnoses" rows="2"></textarea></div>
+            <div class="cl-field"><label>اقدامات انجام‌شده</label><textarea id="ref-procedures" rows="2"></textarea></div>
+            <div class="cl-field"><label>سابقه‌ی بیماری</label><textarea id="ref-medical-history" rows="2"></textarea></div>
+            <div class="cl-field"><label>آلرژی‌ها</label><textarea id="ref-allergies" rows="2"></textarea></div>
+            <div class="cl-field"><label>خلاصه‌ی علائم حیاتی</label><textarea id="ref-vitals" rows="2"></textarea></div>
+            <div class="cl-field"><label>داروهای زمان ترخیص</label><textarea id="ref-medications" rows="2"></textarea></div>
+            <div class="cl-field"><label>دستورات مراقبتی</label><textarea id="ref-care-instructions" rows="2"></textarea></div>
+            <div class="cl-field"><label>توصیه‌های پیگیری</label><textarea id="ref-follow-up" rows="2"></textarea></div>
+            <div class="cl-field"><label>یادداشت‌های تکمیلی</label><textarea id="ref-notes" rows="2"></textarea></div>
+
+            <div class="cl-admin-row">
+                <div class="cl-field"><label>نام پزشک معالج</label><input type="text" id="ref-physician"></div>
+                <div class="cl-field"><label>نام بخش مبدأ (متن آزاد)</label><input type="text" id="ref-department-name"></div>
+            </div>
+            <div class="cl-admin-row">
+                <div class="cl-field"><label>تاریخ پذیرش</label><input type="date" id="ref-admission-date"></div>
+                <div class="cl-field"><label>تاریخ ترخیص</label><input type="date" id="ref-discharge-date"></div>
+            </div>
+
+            <div class="cl-admin-inline-form">
+                <input type="file" id="ref-attachment-file">
+                <span style="font-size:12px; color:#8CA0B3;">فایل ضمیمه (اختیاری، مثل PDF خلاصه پرونده)</span>
+            </div>
+
+            <button id="ref-submit-btn" class="cl-btn" style="margin-top:16px;">ثبت ارجاع</button>
+        </div>
+
+        <div class="cl-card cl-admin-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <h2 class="cl-admin-h2" style="margin:0;">لیست ارجاعات</h2>
+                <span id="ref-total-count" style="font-size:13px; color:#8CA0B3;"></span>
+            </div>
+            <div class="cl-admin-inline-form" style="margin-bottom:14px;">
+                <select id="ref-status-filter">
+                    <option value="">— همه‌ی وضعیت‌ها —</option>
+                    <option value="received">دریافت‌شده</option>
+                    <option value="matched">تطبیق‌یافته</option>
+                    <option value="reviewed">بررسی‌شده</option>
+                </select>
+                <input type="text" id="ref-search" placeholder="جستجو با نام...">
+                <button id="ref-filter-btn" class="cl-btn cl-btn-sm">اعمال فیلتر</button>
+            </div>
+            <div id="ref-list"></div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const TOKEN_KEY = "curalink_admin_token";
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) { window.location.href = "/admin/login"; return; }
+
+    async function api(path, options) {
+        options = options || {};
+        options.headers = Object.assign(
+            options.isFormData ? { "Authorization": "Bearer " + token } : { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) { localStorage.removeItem(TOKEN_KEY); window.location.href = "/admin/login"; throw new Error("unauthorized"); }
+        if (res.status === 204) return null;
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    const STATUS_LABELS = { received: "دریافت‌شده", matched: "تطبیق‌یافته", reviewed: "بررسی‌شده" };
+
+    const hospitalSelect = document.getElementById("ref-hospital-select");
+    const refContent = document.getElementById("ref-content");
+    const apiKeyList = document.getElementById("ref-api-key-list");
+    const refList = document.getElementById("ref-list");
+    const refTotalCount = document.getElementById("ref-total-count");
+
+    let currentHospitalId = null;
+
+    async function loadHospitals() {
+        const hospitals = await api("/admin/hospitals");
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${h.name}</option>`; }).join("");
+    }
+
+    async function loadApiKeys() {
+        const keys = await api(`/admin/hospitals/${currentHospitalId}/api-keys`);
+        apiKeyList.innerHTML = keys.length === 0
+            ? '<p class="cl-admin-empty">هنوز کلیدی ساخته نشده.</p>'
+            : keys.map(function (k) {
+                const statusBadge = k.is_active
+                    ? '<span class="cl-admin-badge cl-admin-badge-live">فعال</span>'
+                    : '<span class="cl-admin-badge cl-admin-badge-draft">غیرفعال</span>';
+                return `<div class="cl-admin-mini-item">
+                    ${k.label || "بدون برچسب"} ${statusBadge}
+                    ${k.is_active ? `<button class="cl-admin-del-btn" data-key-id="${k.id}">غیرفعال کردن</button>` : ""}
+                </div>`;
+            }).join("");
+
+        apiKeyList.querySelectorAll("[data-key-id]").forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                const confirmed = await AdminModal.confirm("این کلید غیرفعال شود؟ سیستم بیمارستان دیگر نمی‌تواند از آن استفاده کند.");
+                if (!confirmed) return;
+                try {
+                    await api(`/admin/hospital-api-keys/${btn.dataset.keyId}/revoke`, { method: "POST" });
+                    AdminToast.success("کلید غیرفعال شد.");
+                    await loadApiKeys();
+                } catch (err) {
+                    AdminToast.error(err.message);
+                }
+            });
+        });
+    }
+
+    document.getElementById("ref-create-api-key-btn").addEventListener("click", async function () {
+        const label = document.getElementById("ref-api-key-label").value.trim();
+        try {
+            const result = await api("/admin/hospital-api-keys", {
+                method: "POST",
+                body: JSON.stringify({ hospital_id: currentHospitalId, label: label || null }),
+            });
+            document.getElementById("ref-api-key-label").value = "";
+            await AdminModal.form("کلید API ساخته شد — این را همین الان کپی کنید", [
+                { name: "api_key", label: "این کلید فقط یک‌بار نمایش داده می‌شود", value: result.api_key },
+            ]);
+            await loadApiKeys();
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    async function uploadAttachmentIfPresent() {
+        const fileInput = document.getElementById("ref-attachment-file");
+        const file = fileInput.files[0];
+        if (!file) return null;
+        const formData = new FormData();
+        formData.append("media_type", "pdf");
+        formData.append("file", file);
+        try {
+            const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
+            return result.url;
+        } catch (err) {
+            // Attachment might not be a PDF (e.g. an image) - try image type as fallback
+            formData.set("media_type", "image");
+            const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
+            return result.url;
+        }
+    }
+
+    document.getElementById("ref-submit-btn").addEventListener("click", async function () {
+        if (!currentHospitalId) { AdminToast.error("اول بیمارستان را انتخاب کنید."); return; }
+
+        try {
+            const attachmentUrl = await uploadAttachmentIfPresent();
+
+            const payload = {
+                first_name: document.getElementById("ref-first-name").value.trim() || null,
+                last_name: document.getElementById("ref-last-name").value.trim() || null,
+                national_id: document.getElementById("ref-national-id").value.trim() || null,
+                phone_number: document.getElementById("ref-phone").value.trim() || null,
+                insurance_code: document.getElementById("ref-insurance").value.trim() || null,
+                chief_complaint: document.getElementById("ref-chief-complaint").value.trim() || null,
+                primary_diagnosis: document.getElementById("ref-primary-diagnosis").value.trim() || null,
+                secondary_diagnoses: document.getElementById("ref-secondary-diagnoses").value.trim() || null,
+                procedures_performed: document.getElementById("ref-procedures").value.trim() || null,
+                medical_history: document.getElementById("ref-medical-history").value.trim() || null,
+                allergies: document.getElementById("ref-allergies").value.trim() || null,
+                vital_signs_summary: document.getElementById("ref-vitals").value.trim() || null,
+                discharge_medications: document.getElementById("ref-medications").value.trim() || null,
+                care_instructions: document.getElementById("ref-care-instructions").value.trim() || null,
+                follow_up_recommendations: document.getElementById("ref-follow-up").value.trim() || null,
+                additional_notes: document.getElementById("ref-notes").value.trim() || null,
+                attending_physician_name: document.getElementById("ref-physician").value.trim() || null,
+                referring_department_name: document.getElementById("ref-department-name").value.trim() || null,
+                admission_date: document.getElementById("ref-admission-date").value || null,
+                discharge_date: document.getElementById("ref-discharge-date").value || null,
+                attachment_file_url: attachmentUrl,
+            };
+
+            await api(`/admin/referrals?hospital_id=${currentHospitalId}`, {
+                method: "POST",
+                body: JSON.stringify(payload),
+            });
+
+            AdminToast.success("ارجاع ثبت شد.");
+            document.querySelectorAll("#ref-content input[type='text'], #ref-content textarea, #ref-content input[type='date']").forEach(function (el) { el.value = ""; });
+            document.getElementById("ref-attachment-file").value = "";
+            await loadReferrals();
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    async function loadReferrals() {
+        let url = `/admin/referrals?hospital_id=${currentHospitalId}`;
+        const statusFilter = document.getElementById("ref-status-filter").value;
+        const search = document.getElementById("ref-search").value.trim();
+        if (statusFilter) url += `&status_filter=${statusFilter}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        const result = await api(url);
+        refTotalCount.textContent = `${result.total} نتیجه`;
+
+        refList.innerHTML = result.rows.length === 0
+            ? '<p class="cl-admin-empty">هنوز ارجاعی ثبت نشده.</p>'
+            : result.rows.map(function (r) {
+                const statusBadge = r.status === "reviewed"
+                    ? '<span class="cl-admin-badge cl-admin-badge-live">بررسی‌شده</span>'
+                    : r.status === "matched"
+                    ? '<span class="cl-admin-badge" style="background:rgba(15,182,168,.15); color:var(--accent);">تطبیق‌یافته</span>'
+                    : '<span class="cl-admin-badge cl-admin-badge-draft">دریافت‌شده</span>';
+                const sourceLabel = r.source === "api" ? "API" : "دستی";
+                const name = [r.first_name, r.last_name].filter(Boolean).join(" ") || "بدون نام";
+                return `<div class="cl-admin-lesson-row">
+                    <div class="cl-admin-lesson-head">
+                        <strong>${name}</strong>
+                        ${statusBadge}
+                        <span style="font-size:11.5px; color:#8CA0B3;">منبع: ${sourceLabel}</span>
+                        ${r.status !== "reviewed" ? `<button class="cl-btn cl-btn-sm cl-btn-outline" data-mark-reviewed="${r.id}">علامت‌گذاری به‌عنوان بررسی‌شده</button>` : ""}
+                    </div>
+                    <p style="font-size:13px; color:var(--text); margin:10px 0 0;">
+                        ${r.primary_diagnosis ? `<strong>تشخیص:</strong> ${r.primary_diagnosis}<br>` : ""}
+                        ${r.discharge_medications ? `<strong>داروها:</strong> ${r.discharge_medications}<br>` : ""}
+                        ${r.care_instructions ? `<strong>دستورات مراقبتی:</strong> ${r.care_instructions}<br>` : ""}
+                        ${r.attachment_file_url ? `<a href="${r.attachment_file_url}" target="_blank">مشاهده فایل ضمیمه</a>` : ""}
+                    </p>
+                </div>`;
+            }).join("");
+
+        refList.querySelectorAll("[data-mark-reviewed]").forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                try {
+                    await api(`/admin/referrals/${btn.dataset.markReviewed}/mark-reviewed`, { method: "POST" });
+                    AdminToast.success("علامت‌گذاری شد.");
+                    await loadReferrals();
+                } catch (err) {
+                    AdminToast.error(err.message);
+                }
+            });
+        });
+    }
+
+    hospitalSelect.addEventListener("change", async function () {
+        currentHospitalId = hospitalSelect.value || null;
+        if (currentHospitalId) {
+            refContent.style.display = "block";
+            await loadApiKeys();
+            await loadReferrals();
+        } else {
+            refContent.style.display = "none";
+        }
+    });
+
+    document.getElementById("ref-filter-btn").addEventListener("click", loadReferrals);
+
+    (async function init() {
+        await loadHospitals();
+    })();
+})();
+</script>
+{% endblock %}

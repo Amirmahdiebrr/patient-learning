@@ -4,7 +4,7 @@ app/api/v1/admin_qr.py
 Admin CRUD for QRAccessPoint: create (generates the token + returns
 the full entry URL to encode into a printed QR image), list, revoke.
 
-Uses require_department_scope (not just require_hospital_scope) for
+Uses ensure_department_access (not just ensure_hospital_access) for
 create/revoke, since a QR access point belongs to one specific
 department - a department_admin scoped to Orthopedics must not be
 able to create or revoke a QR for Cardiology just because both sit
@@ -12,6 +12,7 @@ under the same hospital.
 """
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -20,7 +21,10 @@ from app.core.config import settings
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import QRAccessPoint, QRAccessPointStatus, AdminUser, Department
 from app.schemas.admin import QRAccessPointCreateRequest, QRAccessPointResponse
-from app.api.deps_admin import get_current_admin, require_hospital_scope, require_department_scope
+from app.api.deps_admin import get_current_admin
+from app.infrastructure.db.repositories.hospital_scoped_repository import (
+    ensure_hospital_access, ensure_department_access,
+)
 from app.services.access_gate_service import generate_qr_token
 
 router = APIRouter(prefix="/admin/qr-access-points", tags=["admin_qr"])
@@ -52,8 +56,7 @@ async def create_qr_access_point(
     if not department:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد یا به این بیمارستان تعلق ندارد.")
 
-    if not require_department_scope(admin, db, payload.hospital_id, payload.department_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بخش ندارید.")
+    ensure_department_access(admin, db, payload.hospital_id, payload.department_id)
 
     access_point = QRAccessPoint(
         hospital_id=payload.hospital_id,
@@ -76,8 +79,7 @@ async def list_qr_access_points(
     admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    if not require_hospital_scope(admin, db, hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, hospital_id)
 
     access_points = (
         db.query(QRAccessPoint)
@@ -98,10 +100,8 @@ async def revoke_qr_access_point(
     if not access_point:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "این QR پیدا نشد.")
 
-    if not require_department_scope(admin, db, access_point.hospital_id, access_point.department_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بخش ندارید.")
+    ensure_department_access(admin, db, access_point.hospital_id, access_point.department_id)
 
-    from datetime import datetime
     access_point.status = QRAccessPointStatus.REVOKED
     access_point.revoked_at = datetime.utcnow()
     db.commit()

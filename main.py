@@ -32,6 +32,8 @@ from app.api.v1.admin_audit_log import router as admin_audit_log_router
 from app.api.v1.admin_patient_journey import router as admin_patient_journey_router
 from app.api.v1.admin_followup import router as admin_followup_router
 from app.api.v1.admin_analytics import router as admin_analytics_router
+from app.api.v1.admin_referrals import router as admin_referrals_router
+from app.api.v1.referrals_public import router as referrals_public_router
 from app.api.v1.admin_panel import router as admin_panel_router
 
 setup_logging()
@@ -51,7 +53,8 @@ ALL_ROUTERS = [
     patient_lessons_router, assistant_router, admin_auth_router, admin_users_router,
     admin_hospitals_router, admin_qr_router, admin_content_router, admin_media_upload_router,
     admin_patient_report_router, admin_audit_log_router, admin_patient_journey_router,
-    admin_followup_router, admin_analytics_router, admin_panel_router,
+    admin_followup_router, admin_analytics_router, admin_referrals_router,
+    referrals_public_router, admin_panel_router,
 ]
 
 for router in ALL_ROUTERS:
@@ -66,11 +69,6 @@ async def access_gate_exception_handler(request: Request, exc: AccessGateError):
 
 @app.get("/")
 async def root_redirect_to_scan_notice(request: Request):
-    """
-    Direct navigation to the domain (no QR-derived cookie) always
-    lands here, since every patient-facing route requires the access
-    cookie and there is deliberately no other entry point.
-    """
     return templates.TemplateResponse(request, "scan_required.html", {"request": request})
 
 
@@ -79,8 +77,6 @@ async def on_startup():
     logger.info("CuraLink Patient Education Platform starting up.")
     register_all_event_handlers()
     logger.info("[EventBus] Domain event handlers registered.")
-    # NOTE: Base.metadata.create_all() is intentionally NOT called here.
-    # Schema changes must go through Alembic migrations - see alembic/.
 
 
 if __name__ == "__main__":

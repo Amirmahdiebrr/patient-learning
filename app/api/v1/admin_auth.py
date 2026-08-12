@@ -1,21 +1,18 @@
 """
 app/api/v1/admin_auth.py
 
-Admin login. Patients have no login - this is exclusively for
-hospital/department/content-manager staff and super admins.
-
-Rate-limited on two independent keys to resist brute-force:
-- by client IP (catches a single attacker hammering many accounts)
-- by the submitted email (catches distributed attempts against one
-  specific account)
-Both checks happen before password verification so failed attempts
-never touch bcrypt (which is intentionally slow) under load.
+Admin login/logout. On success, the JWT is set as an httpOnly cookie
+(never returned in the JSON body or stored in localStorage/JS-reachable
+storage) plus a separate, JS-unreadable CSRF cookie the admin pages
+embed into a <meta> tag - see admin_panel.py.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.csrf import issue_csrf_cookie
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import AdminUser
 from app.core.security import verify_password, create_admin_access_token
@@ -35,12 +32,17 @@ class AdminLoginRequest(BaseModel):
 
 
 class AdminLoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+    full_name: str
+    email: str
 
 
 @router.post("/login", response_model=AdminLoginResponse)
-async def admin_login(payload: AdminLoginRequest, request: Request, db: Session = Depends(get_db)):
+async def admin_login(
+    payload: AdminLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     client_ip = request.client.host if request.client else "unknown"
 
     ip_result = check_rate_limit(f"admin_login_ip:{client_ip}", LOGIN_IP_LIMIT, LOGIN_IP_WINDOW_SECONDS)
@@ -70,4 +72,22 @@ async def admin_login(payload: AdminLoginRequest, request: Request, db: Session 
         raise HTTPException(status.HTTP_403_FORBIDDEN, "این حساب غیرفعال است.")
 
     token = create_admin_access_token(str(admin.id))
-    return AdminLoginResponse(access_token=token)
+
+    response.set_cookie(
+        key=settings.ADMIN_TOKEN_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    issue_csrf_cookie(response, settings.ADMIN_CSRF_COOKIE_NAME)
+
+    return AdminLoginResponse(full_name=admin.full_name, email=admin.email)
+
+
+@router.post("/logout")
+async def admin_logout(response: Response):
+    response.delete_cookie(settings.ADMIN_TOKEN_COOKIE_NAME)
+    response.delete_cookie(settings.ADMIN_CSRF_COOKIE_NAME)
+    return {"ok": True}

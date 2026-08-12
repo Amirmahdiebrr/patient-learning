@@ -1,11 +1,5 @@
 """
 app/services/event_handlers/logging_handlers.py
-
-Baseline event handler: logs every domain event. This exists so
-events are observable immediately (before Audit Log / Analytics
-handlers are built), and stays useful afterwards as a lightweight
-debug trail independent of whatever structured storage is added
-later.
 """
 
 from app.core.event_bus import event_bus
@@ -17,6 +11,7 @@ from app.core.events import (
     LessonCompleted,
     QuizCompleted,
     AIConversationStarted,
+    ReferralReceived,
 )
 from app.core.logging_config import get_logger
 
@@ -30,6 +25,7 @@ _LOGGED_EVENT_TYPES = (
     LessonCompleted,
     QuizCompleted,
     AIConversationStarted,
+    ReferralReceived,
 )
 
 

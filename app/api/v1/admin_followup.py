@@ -6,13 +6,14 @@ Read-only view of scheduled follow-up tasks, hospital-scoped.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import FollowUpTask, AdminUser
 from app.schemas.followup_admin import FollowUpTaskResponse
-from app.api.deps_admin import get_current_admin, require_hospital_scope
+from app.api.deps_admin import get_current_admin
+from app.infrastructure.db.repositories.hospital_scoped_repository import ensure_hospital_access
 
 router = APIRouter(prefix="/admin", tags=["admin_followup"])
 
@@ -24,8 +25,7 @@ async def list_followup_tasks(
     admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    if not require_hospital_scope(admin, db, hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, hospital_id)
 
     query = db.query(FollowUpTask).filter(FollowUpTask.hospital_id == hospital_id)
     if status_filter:

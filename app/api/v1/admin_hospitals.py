@@ -24,23 +24,20 @@ from sqlalchemy.orm import Session
 from app.core.event_bus import event_bus
 from app.core.events import AdminContentAction
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import Hospital, Department, RoleCode, StandardDepartmentType
+from app.infrastructure.db.models import Hospital, Department, RoleCode, StandardDepartmentType, AdminUser
 from app.schemas.admin import (
     HospitalCreateRequest, HospitalUpdateRequest, HospitalResponse,
     DepartmentCreateRequest, DepartmentUpdateRequest, DepartmentResponse,
     StandardDepartmentTypeResponse,
     slugify,
 )
-from app.api.deps_admin import ScopeCheck, require_hospital_scope, get_current_admin
-from app.infrastructure.db.models import AdminUser
+from app.api.deps_admin import ScopeCheck, get_current_admin
+from app.api.deps_common import client_ip
+from app.infrastructure.db.repositories.hospital_scoped_repository import ensure_hospital_access
 
 router = APIRouter(prefix="/admin", tags=["admin_hospitals"])
 
 require_super_admin = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN,))
-
-
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
 
 
 def _to_department_response(department: Department) -> DepartmentResponse:
@@ -90,7 +87,7 @@ async def create_hospital(
         object_id=hospital.id,
         before=None,
         after=_hospital_snapshot(hospital),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return hospital
@@ -137,7 +134,7 @@ async def update_hospital(
         object_id=hospital.id,
         before=before,
         after=_hospital_snapshot(hospital),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return hospital
@@ -166,7 +163,7 @@ async def deactivate_hospital(
         object_id=hospital.id,
         before=before,
         after=_hospital_snapshot(hospital),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return hospital
@@ -195,7 +192,7 @@ async def reactivate_hospital(
         object_id=hospital.id,
         before=before,
         after=_hospital_snapshot(hospital),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return hospital
@@ -234,8 +231,7 @@ async def create_department(
     admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    if not require_hospital_scope(admin, db, payload.hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, payload.hospital_id)
 
     hospital = db.query(Hospital).filter(Hospital.id == payload.hospital_id).first()
     if not hospital:
@@ -265,7 +261,7 @@ async def create_department(
         object_id=department.id,
         before=None,
         after=_department_snapshot(department),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)
@@ -300,8 +296,7 @@ async def update_department(
     if not department:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد.")
 
-    if not require_hospital_scope(admin, db, department.hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, department.hospital_id)
 
     if payload.department_type_id:
         dept_type = db.query(StandardDepartmentType).filter(
@@ -325,7 +320,7 @@ async def update_department(
         object_id=department.id,
         before=before,
         after=_department_snapshot(department),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)
@@ -342,8 +337,7 @@ async def deactivate_department(
     if not department:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد.")
 
-    if not require_hospital_scope(admin, db, department.hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, department.hospital_id)
 
     before = _department_snapshot(department)
     department.is_active = False
@@ -357,7 +351,7 @@ async def deactivate_department(
         object_id=department.id,
         before=before,
         after=_department_snapshot(department),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)
@@ -374,8 +368,7 @@ async def reactivate_department(
     if not department:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد.")
 
-    if not require_hospital_scope(admin, db, department.hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, department.hospital_id)
 
     before = _department_snapshot(department)
     department.is_active = True
@@ -389,7 +382,7 @@ async def reactivate_department(
         object_id=department.id,
         before=before,
         after=_department_snapshot(department),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)

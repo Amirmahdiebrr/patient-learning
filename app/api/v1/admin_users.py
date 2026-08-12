@@ -28,15 +28,12 @@ from app.schemas.admin import (
     RoleAssignmentCreateRequest, RoleAssignmentResponse,
 )
 from app.api.deps_admin import ScopeCheck
+from app.api.deps_common import client_ip
 from app.core.security import hash_password
 
 router = APIRouter(prefix="/admin", tags=["admin_users"])
 
 require_super_admin = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN,))
-
-
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
 
 
 def _to_assignment_response(a: AdminRoleAssignment) -> RoleAssignmentResponse:
@@ -78,7 +75,7 @@ async def create_admin_user(
         object_id=new_admin.id,
         before=None,
         after={"email": new_admin.email, "full_name": new_admin.full_name},
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return new_admin
@@ -114,7 +111,7 @@ async def deactivate_admin_user(
         object_id=target.id,
         before={"is_active": True},
         after={"is_active": False},
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return target
@@ -188,7 +185,7 @@ async def create_role_assignment(
             "hospital_id": str(payload.hospital_id) if payload.hospital_id else None,
             "department_id": str(payload.department_id) if payload.department_id else None,
         },
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))
 
     return _to_assignment_response(assignment)
@@ -237,5 +234,5 @@ async def delete_role_assignment(
         object_id=assignment_id_copy,
         before=snapshot,
         after=None,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     ))

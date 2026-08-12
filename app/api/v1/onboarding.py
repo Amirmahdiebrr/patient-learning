@@ -2,7 +2,6 @@
 app/api/v1/onboarding.py
 """
 
-import re
 from datetime import datetime
 
 from fastapi import APIRouter, Request, Depends, Form, HTTPException, status
@@ -11,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.event_bus import event_bus
 from app.core.events import PatientRegistered
+from app.core.encryption import hash_lookup_value
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
     Disease, Treatment, PatientJourneyProfile, JourneyStageCode, PatientRegistration,
@@ -21,6 +21,7 @@ from app.core.templates import templates
 
 router = APIRouter(tags=["onboarding"])
 
+import re
 NATIONAL_ID_PATTERN = re.compile(r"^\d{10}$")
 PHONE_PATTERN = re.compile(r"^09\d{9}$")
 
@@ -87,6 +88,7 @@ async def onboarding_submit(
     registration.first_name = first_name
     registration.last_name = last_name
     registration.national_id = national_id
+    registration.national_id_hash = hash_lookup_value(national_id)
     registration.phone_number = phone_number
     registration.insurance_code = insurance_code.strip() if insurance_code else None
 

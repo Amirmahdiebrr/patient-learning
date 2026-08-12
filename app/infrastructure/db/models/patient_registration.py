@@ -6,6 +6,12 @@ of the anonymous PatientAccessProfile. national_id, phone_number, and
 insurance_code are encrypted at rest via EncryptedString - encryption
 and decryption happen transparently on every write/read, no service
 or route code touches ciphertext directly.
+
+national_id_hash is a deterministic HMAC-SHA256 digest of national_id
+(see app/core/encryption.hash_lookup_value), stored alongside the
+encrypted value purely to allow exact-match lookups (e.g. matching an
+incoming PatientReferral to this patient) without decrypting every
+row in the table.
 """
 
 import uuid
@@ -32,6 +38,7 @@ class PatientRegistration(Base):
     first_name = Column(String(255), nullable=False)
     last_name = Column(String(255), nullable=False)
     national_id = Column(EncryptedString(255), nullable=False)
+    national_id_hash = Column(String(64), nullable=True, index=True)
     phone_number = Column(EncryptedString(255), nullable=False)
     insurance_code = Column(EncryptedString(255), nullable=True)
 

@@ -32,3 +32,8 @@ async def admin_panel_page(request: Request):
 @router.get("/patients")
 async def admin_patients_report_page(request: Request):
     return templates.TemplateResponse(request, "admin/patients.html", {"request": request, "active_page": "patients"})
+
+
+@router.get("/referrals")
+async def admin_referrals_page(request: Request):
+    return templates.TemplateResponse(request, "admin/referrals.html", {"request": request, "active_page": "referrals"})

@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}پنل مدیریت محتوا | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
 {% block content %}
 <div class="cl-container cl-admin-container">
     {% include "admin/_nav.html" %}
@@ -129,22 +132,18 @@
 {% block scripts %}
 <script>
 (function () {
-    const TOKEN_KEY = "curalink_admin_token";
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-        window.location.href = "/admin/login";
-        return;
-    }
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
     async function api(path, options) {
         options = options || {};
+        options.credentials = "same-origin";
         options.headers = Object.assign(
-            options.isFormData ? { "Authorization": "Bearer " + token } : { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            options.isFormData ? {} : { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
             options.headers || {}
         );
         const res = await fetch(path, options);
         if (res.status === 401) {
-            localStorage.removeItem(TOKEN_KEY);
             window.location.href = "/admin/login";
             throw new Error("unauthorized");
         }
@@ -152,6 +151,12 @@
         const data = await res.json().catch(function () { return null; });
         if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
         return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
     }
 
     const MACRO_LABELS = {
@@ -192,10 +197,10 @@
             if (!grouped[t.macro_category]) grouped[t.macro_category] = [];
             grouped[t.macro_category].push(t);
         });
-        let html = `<option value="${placeholderValue}">${placeholderText}</option>`;
+        let html = `<option value="${escapeHtml(placeholderValue)}">${escapeHtml(placeholderText)}</option>`;
         Object.keys(grouped).forEach(function (macro) {
-            html += `<optgroup label="${MACRO_LABELS[macro] || macro}">`;
-            grouped[macro].forEach(function (t) { html += `<option value="${t.id}">${t.name}</option>`; });
+            html += `<optgroup label="${escapeHtml(MACRO_LABELS[macro] || macro)}">`;
+            grouped[macro].forEach(function (t) { html += `<option value="${t.id}">${escapeHtml(t.name)}</option>`; });
             html += "</optgroup>";
         });
         selectEl.innerHTML = html;
@@ -210,7 +215,7 @@
     async function loadStages() {
         allJourneyStages = await api("/admin/journey-stages");
         stageSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
-            allJourneyStages.map(function (s) { return `<option value="${s.id}">${s.name}</option>`; }).join("");
+            allJourneyStages.map(function (s) { return `<option value="${s.id}">${escapeHtml(s.name)}</option>`; }).join("");
     }
 
     async function loadSections() {
@@ -225,7 +230,7 @@
     function renderSectionRow(s) {
         return `
         <div class="cl-admin-section-row" data-section-id="${s.id}">
-            <button class="cl-admin-pick-btn" data-section-id="${s.id}">${s.title} <small>(${s.lesson_count} درس)</small></button>
+            <button class="cl-admin-pick-btn" data-section-id="${s.id}">${escapeHtml(s.title)} <small>(${s.lesson_count} درس)</small></button>
             <button class="cl-admin-icon-btn" data-action="edit-section" data-section-id="${s.id}" title="ویرایش">✎</button>
             <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-action="delete-section" data-section-id="${s.id}" title="حذف">🗑</button>
         </div>`;
@@ -292,7 +297,7 @@
         return `
         <div class="cl-admin-lesson-row" data-lesson-id="${lesson.id}">
             <div class="cl-admin-lesson-head">
-                <strong>${lesson.title}</strong>
+                <strong>${escapeHtml(lesson.title)}</strong>
                 ${statusBadge}
                 <button class="cl-btn cl-btn-sm cl-btn-outline cl-admin-expand-btn" data-lesson-id="${lesson.id}">مدیریت</button>
             </div>
@@ -335,7 +340,7 @@
                 <h4>مدیا (آپلود فایل واقعی)</h4>
                 <div class="cl-admin-mini-list" id="media-list-${lessonId}">
                     ${media.map(function (m) {
-                        return `<div class="cl-admin-mini-item">${m.type} - <a href="${m.file_url}" target="_blank">${m.file_url}</a>
+                        return `<div class="cl-admin-mini-item">${escapeHtml(m.type)} - <a href="${escapeHtml(m.file_url)}" target="_blank">${escapeHtml(m.file_url)}</a>
                             <button class="cl-admin-del-btn" data-kind="media" data-id="${m.id}">حذف</button></div>`;
                     }).join("") || '<p class="cl-admin-empty">موردی ثبت نشده.</p>'}
                 </div>
@@ -356,7 +361,7 @@
                 <h4>آزمون این درس</h4>
                 <div class="cl-admin-mini-list" id="quiz-list-${lessonId}">
                     ${quizzes.map(function (q) {
-                        return `<div class="cl-admin-mini-item">${q.question_text} (${q.options.length} گزینه)
+                        return `<div class="cl-admin-mini-item">${escapeHtml(q.question_text)} (${q.options.length} گزینه)
                             <button class="cl-admin-del-btn" data-kind="quiz" data-id="${q.id}">حذف</button></div>`;
                     }).join("") || '<p class="cl-admin-empty">سوالی ثبت نشده.</p>'}
                 </div>
@@ -382,12 +387,6 @@
         const found = lessons.find(function (l) { return l.id === lessonId; });
         if (!found) throw new Error("درس پیدا نشد.");
         return found;
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement("div");
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     function wireLessonDetailActions(lessonId, container) {
@@ -609,7 +608,7 @@
             ? '<p class="cl-admin-empty">هنوز سوالی برای این مرحله ثبت نشده.</p>'
             : questions.map(function (q) {
                 return `<div class="cl-admin-mini-item">
-                    ${q.question_image_url ? "🖼 " : ""}${q.question_text} (${q.options.length} گزینه)
+                    ${q.question_image_url ? "🖼 " : ""}${escapeHtml(q.question_text)} (${q.options.length} گزینه)
                     <button class="cl-admin-del-btn" data-question-id="${q.id}">حذف</button>
                 </div>`;
             }).join("");
@@ -627,6 +626,31 @@
                 }
             });
         });
+    }
+
+    // ---------- Global lesson search ----------
+
+    document.getElementById("global-search-btn").addEventListener("click", runGlobalSearch);
+    globalSearchInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") runGlobalSearch();
+    });
+
+    async function runGlobalSearch() {
+        const q = globalSearchInput.value.trim();
+        if (q.length < 2) { AdminToast.error("حداقل ۲ حرف بنویس."); return; }
+        globalSearchResults.innerHTML = '<p class="cl-admin-empty">در حال جستجو...</p>';
+        try {
+            const results = await api(`/admin/lessons/search?q=${encodeURIComponent(q)}`);
+            globalSearchResults.innerHTML = results.length === 0
+                ? '<p class="cl-admin-empty">نتیجه‌ای پیدا نشد.</p>'
+                : results.map(function (r) {
+                    return `<div class="cl-admin-mini-item">
+                        <span>${escapeHtml(r.title)} — ${escapeHtml(r.journey_stage_name)}${r.department_type_name ? " / " + escapeHtml(r.department_type_name) : ""}</span>
+                    </div>`;
+                }).join("");
+        } catch (err) {
+            globalSearchResults.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
     }
 
     // ---------- Existing handlers below (sections, hospitals, departments) ----------
@@ -702,7 +726,7 @@
         hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
             hospitals.map(function (h) {
                 const inactiveTag = h.is_active ? "" : " (غیرفعال)";
-                return `<option value="${h.id}">${h.name}${inactiveTag}</option>`;
+                return `<option value="${h.id}">${escapeHtml(h.name)}${inactiveTag}</option>`;
             }).join("");
 
         if (selectAfterId) {
@@ -718,9 +742,9 @@
         const departments = await api(`/admin/hospitals/${hospitalId}/departments?include_inactive=true`);
         departmentSelect.innerHTML = '<option value="">— بخشی هنوز اضافه نشده —</option>' +
             departments.map(function (d) {
-                const typeLabel = d.department_type_name ? ` (${d.department_type_name})` : " (عمومی)";
+                const typeLabel = d.department_type_name ? ` (${escapeHtml(d.department_type_name)})` : " (عمومی)";
                 const inactiveTag = d.is_active ? "" : " [غیرفعال]";
-                return `<option value="${d.id}">${d.name}${typeLabel}${inactiveTag}</option>`;
+                return `<option value="${d.id}">${escapeHtml(d.name)}${typeLabel}${inactiveTag}</option>`;
             }).join("");
     }
 

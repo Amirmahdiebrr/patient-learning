@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block title %}گزارش بیماران | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
 {% block content %}
 <div class="cl-container cl-admin-container">
     {% include "admin/_nav.html" %}
 
     <div class="cl-card cl-admin-card">
         <h1>گزارش بیماران ثبت‌نام‌شده</h1>
-        <p class="cl-sub">لیست بیمارانی که از طریق QR وارد شده و اطلاعات خود را ثبت کرده‌اند.</p>
+        <p class="cl-sub">لیست بیمارانی که از طریق QR وارد شده و اطلاعات خود را ثبت کرده‌اند. جستجوی کد ملی/شماره همراه باید دقیق و کامل باشد (به دلیل رمزنگاری این فیلدها).</p>
 
         <div class="cl-admin-row">
             <div class="cl-field">
@@ -20,7 +23,7 @@
         </div>
 
         <div class="cl-admin-inline-form">
-            <input type="text" id="report-search-input" placeholder="جستجو با نام، کد ملی یا شماره همراه...">
+            <input type="text" id="report-search-input" placeholder="نام، یا کد ملی/شماره همراه کامل...">
             <select id="report-stage-select"><option value="">— همه‌ی مراحل —</option></select>
             <button id="report-search-btn" class="cl-btn cl-btn-sm">اعمال فیلتر</button>
         </div>
@@ -42,28 +45,30 @@
 {% block scripts %}
 <script>
 (function () {
-    const TOKEN_KEY = "curalink_admin_token";
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-        window.location.href = "/admin/login";
-        return;
-    }
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
     async function api(path, options) {
         options = options || {};
+        options.credentials = "same-origin";
         options.headers = Object.assign(
-            { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
             options.headers || {}
         );
         const res = await fetch(path, options);
         if (res.status === 401) {
-            localStorage.removeItem(TOKEN_KEY);
             window.location.href = "/admin/login";
             throw new Error("unauthorized");
         }
         const data = await res.json().catch(function () { return null; });
         if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
         return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
     }
 
     const hospitalSelect = document.getElementById("report-hospital-select");
@@ -91,13 +96,13 @@
     async function loadHospitals() {
         const hospitals = await api("/admin/hospitals");
         hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
-            hospitals.map(function (h) { return `<option value="${h.id}">${h.name}</option>`; }).join("");
+            hospitals.map(function (h) { return `<option value="${h.id}">${escapeHtml(h.name)}</option>`; }).join("");
     }
 
     async function loadDepartments(hospitalId) {
         const departments = await api(`/admin/hospitals/${hospitalId}/departments`);
         departmentSelect.innerHTML = '<option value="">— همه‌ی بخش‌ها —</option>' +
-            departments.map(function (d) { return `<option value="${d.id}">${d.name}</option>`; }).join("");
+            departments.map(function (d) { return `<option value="${d.id}">${escapeHtml(d.name)}</option>`; }).join("");
     }
 
     function genderLabel(g) {
@@ -170,15 +175,15 @@
                     : '<span class="cl-admin-badge cl-admin-badge-draft">ناقص</span>';
 
                 html += `<tr>
-                    <td>${r.first_name} ${r.last_name}</td>
-                    <td>${r.national_id}</td>
-                    <td dir="ltr">${r.phone_number}</td>
-                    <td>${r.insurance_code || "—"}</td>
-                    <td>${r.department_name}</td>
-                    <td>${conditionText}</td>
+                    <td>${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</td>
+                    <td>${escapeHtml(r.national_id)}</td>
+                    <td dir="ltr">${escapeHtml(r.phone_number)}</td>
+                    <td>${escapeHtml(r.insurance_code || "—")}</td>
+                    <td>${escapeHtml(r.department_name)}</td>
+                    <td>${escapeHtml(conditionText)}</td>
                     <td>${surgeryLabel(r.has_surgery)}</td>
                     <td>${r.age ?? "—"} / ${genderLabel(r.gender)}</td>
-                    <td>${r.current_stage_name}</td>
+                    <td>${escapeHtml(r.current_stage_name)}</td>
                     <td>${statusBadge}</td>
                     <td>${formatDate(r.registered_at)}</td>
                 </tr>`;
@@ -187,7 +192,7 @@
             html += "</tbody></table>";
             tableWrap.innerHTML = html;
         } catch (err) {
-            tableWrap.innerHTML = `<p class="cl-admin-empty">خطا: ${err.message}</p>`;
+            tableWrap.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
         }
     }
 

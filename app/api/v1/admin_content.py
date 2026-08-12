@@ -52,14 +52,11 @@ from app.schemas.content_admin import (
     slugify,
 )
 from app.api.deps_admin import ScopeCheck
+from app.api.deps_common import client_ip
 
 router = APIRouter(prefix="/admin", tags=["admin_content"])
 
 require_content_editor = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN, RoleCode.CONTENT_MANAGER))
-
-
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
 
 
 def _to_section_response(section: EducationSection) -> EducationSectionResponse:
@@ -213,7 +210,7 @@ async def create_education_section(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="create", object_type="education_section", object_id=section.id,
-        before=None, after=_section_snapshot(section), ip_address=_client_ip(request),
+        before=None, after=_section_snapshot(section), ip_address=client_ip(request),
     ))
 
     return _to_section_response(section)
@@ -280,7 +277,7 @@ async def update_education_section(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="update", object_type="education_section", object_id=section.id,
-        before=before, after=_section_snapshot(section), ip_address=_client_ip(request),
+        before=before, after=_section_snapshot(section), ip_address=client_ip(request),
     ))
 
     return _to_section_response(section)
@@ -304,7 +301,7 @@ async def deactivate_education_section(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="deactivate", object_type="education_section", object_id=section.id,
-        before=before, after=_section_snapshot(section), ip_address=_client_ip(request),
+        before=before, after=_section_snapshot(section), ip_address=client_ip(request),
     ))
 
     return _to_section_response(section)
@@ -328,7 +325,7 @@ async def reactivate_education_section(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="reactivate", object_type="education_section", object_id=section.id,
-        before=before, after=_section_snapshot(section), ip_address=_client_ip(request),
+        before=before, after=_section_snapshot(section), ip_address=client_ip(request),
     ))
 
     return _to_section_response(section)
@@ -359,7 +356,7 @@ async def delete_education_section(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="delete", object_type="education_section", object_id=section_id_copy,
-        before=before, after=None, ip_address=_client_ip(request),
+        before=before, after=None, ip_address=client_ip(request),
     ))
 
 
@@ -392,7 +389,7 @@ async def create_lesson(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="create", object_type="lesson", object_id=lesson.id,
-        before=None, after=_lesson_snapshot(lesson), ip_address=_client_ip(request),
+        before=None, after=_lesson_snapshot(lesson), ip_address=client_ip(request),
     ))
 
     return lesson
@@ -469,7 +466,7 @@ async def update_lesson(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="update", object_type="lesson", object_id=lesson.id,
-        before=before, after=_lesson_snapshot(lesson), ip_address=_client_ip(request),
+        before=before, after=_lesson_snapshot(lesson), ip_address=client_ip(request),
     ))
 
     return lesson
@@ -494,7 +491,7 @@ async def delete_lesson(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="delete", object_type="lesson", object_id=lesson_id_copy,
-        before=before, after=None, ip_address=_client_ip(request),
+        before=before, after=None, ip_address=client_ip(request),
     ))
 
 
@@ -516,7 +513,7 @@ async def publish_lesson(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="publish", object_type="lesson", object_id=lesson.id,
-        before=before, after=_lesson_snapshot(lesson), ip_address=_client_ip(request),
+        before=before, after=_lesson_snapshot(lesson), ip_address=client_ip(request),
     ))
 
     return lesson
@@ -540,7 +537,7 @@ async def unpublish_lesson(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="unpublish", object_type="lesson", object_id=lesson.id,
-        before=before, after=_lesson_snapshot(lesson), ip_address=_client_ip(request),
+        before=before, after=_lesson_snapshot(lesson), ip_address=client_ip(request),
     ))
 
     return lesson
@@ -586,7 +583,7 @@ async def create_hospital_override(
 
     event_bus.publish(AdminContentAction(
         admin_id=admin.id, action="create", object_type="lesson_hospital_override", object_id=override_lesson.id,
-        before=None, after=_lesson_snapshot(override_lesson), ip_address=_client_ip(request),
+        before=None, after=_lesson_snapshot(override_lesson), ip_address=client_ip(request),
     ))
 
     return override_lesson

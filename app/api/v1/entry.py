@@ -4,11 +4,8 @@ app/api/v1/entry.py
 The route embedded inside every printed QR code:
     https://{APP_BASE_URL}/entry?token=<qr_access_point.access_token>
 
-Resolves the token, issues the signed access + profile cookies, and
-redirects into the app. This is the ONLY legitimate way to obtain a
-valid access cookie - there is no username/password login for
-patients. Rate-limited by IP to slow down brute-force guessing of QR
-tokens. Publishes a QRScanned domain event on every successful scan.
+Resolves the token, issues the signed access + profile cookies (plus
+a CSRF cookie for the forms downstream), and redirects into the app.
 """
 
 from fastapi import APIRouter, Request, Depends
@@ -16,6 +13,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.csrf import issue_csrf_cookie
 from app.core.event_bus import event_bus
 from app.core.events import QRScanned
 from app.infrastructure.db.session import get_db
@@ -26,10 +24,6 @@ from app.api.deps_rate_limit import rate_limit
 
 router = APIRouter(tags=["entry"])
 
-# itsdangerous signatures never expire by default (max_age=None on verify),
-# but the cookie itself still needs a browser-side max_age so it doesn't
-# live forever on a shared/public device. 180 days matches a realistic
-# "in case the patient revisits after discharge" window.
 COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180
 
 ENTRY_RATE_LIMIT = 30
@@ -43,7 +37,6 @@ async def qr_entry(
     db: Session = Depends(get_db),
     _rate_limit=Depends(rate_limit("entry", ENTRY_RATE_LIMIT, ENTRY_RATE_WINDOW_SECONDS)),
 ):
-
     access_point = access_gate_service.resolve_active_qr_access_point(db, token)
 
     if not access_point:
@@ -104,6 +97,7 @@ async def qr_entry(
         secure=settings.is_production,
         samesite="lax",
     )
+    issue_csrf_cookie(response, settings.CSRF_COOKIE_NAME)
 
     return response
 

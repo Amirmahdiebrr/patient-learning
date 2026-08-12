@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_BYTES: int = Field(default=32)
 
     # ==========================
+    # CSRF (double-submit cookie, patient forms + admin panel)
+    # ==========================
+    CSRF_COOKIE_NAME: str = Field(default="curalink_csrf_token")
+    ADMIN_CSRF_COOKIE_NAME: str = Field(default="curalink_admin_csrf_token")
+    CSRF_HEADER_NAME: str = Field(default="X-CSRF-Token")
+
+    # ==========================
     # AI Patient Assistant
     # ==========================
     AI_API_URL: str = Field(default="https://integrate.api.nvidia.com/v1/chat/completions")
@@ -62,6 +69,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(default="CHANGE_ME_IN_PRODUCTION_ENV")
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 12)
+    ADMIN_TOKEN_COOKIE_NAME: str = Field(default="curalink_admin_token")
 
     # ==========================
     # Bootstrap (one-time super_admin creation via seed script)
@@ -79,6 +87,11 @@ class Settings(BaseSettings):
     # Field-level encryption (patient PII: national_id, phone, insurance)
     # ==========================
     ENCRYPTION_KEY: str = Field(default="")
+
+    # One-way HMAC key used ONLY to build searchable hashes of
+    # encrypted fields (see app/core/encryption.py::blind_index).
+    # Must be a different secret than ENCRYPTION_KEY.
+    SEARCH_HASH_KEY: str = Field(default="")
 
     @property
     def is_production(self) -> bool:

@@ -19,6 +19,7 @@
         {% endif %}
 
         <form method="post" action="/welcome/continue" style="margin-top:24px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="cl-btn">ادامه و تکمیل اطلاعات</button>
         </form>
     </div>

@@ -6,12 +6,13 @@ Read-only analytics endpoints, hospital-scoped.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import AdminUser
-from app.api.deps_admin import get_current_admin, require_hospital_scope
+from app.api.deps_admin import get_current_admin
+from app.infrastructure.db.repositories.hospital_scoped_repository import ensure_hospital_access
 from app.schemas.analytics import DashboardSummaryResponse
 from app.services import analytics_service
 
@@ -24,7 +25,6 @@ async def get_dashboard_summary(
     admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    if not require_hospital_scope(admin, db, hospital_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی به این بیمارستان ندارید.")
+    ensure_hospital_access(admin, db, hospital_id)
 
     return analytics_service.get_hospital_dashboard_summary(db, hospital_id)
