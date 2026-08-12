@@ -121,6 +121,8 @@
         return data;
     }
 
+    const STATUS_LABELS = { received: "دریافت‌شده", matched: "تطبیق‌یافته", reviewed: "بررسی‌شده" };
+
     const hospitalSelect = document.getElementById("ref-hospital-select");
     const refContent = document.getElementById("ref-content");
     const apiKeyList = document.getElementById("ref-api-key-list");
@@ -192,6 +194,7 @@
             const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
             return result.url;
         } catch (err) {
+            // Attachment might not be a PDF (e.g. an image) - try image type as fallback
             formData.set("media_type", "image");
             const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
             return result.url;

@@ -102,16 +102,15 @@ class ScopeCheck:
         return _check
 
 
-# نقش‌هایی که با اسکوپ روی یک بیمارستان مجاز به عملیات hospital-level هستند.
-# DOCTOR هم اینجا اضافه شد چون هنگام ساخت این نقش hospital_id اجباریه
-# (admin_users.py::scoped_roles) ولی قبلاً هیچ‌جا استفاده نمی‌شد.
-_HOSPITAL_SCOPED_ROLES = (
-    RoleCode.HOSPITAL_ADMIN, RoleCode.DEPARTMENT_ADMIN,
-    RoleCode.CONTENT_MANAGER, RoleCode.DOCTOR,
-)
-
-
 def require_hospital_scope(admin: AdminUser, db: Session, hospital_id: uuid.UUID) -> bool:
+    """
+    True if the admin can act on hospital-scoped resources for this
+    hospital. Includes DOCTOR now - a doctor's assignment always
+    carries a hospital_id (see admin_users.py's scoped_roles set), and
+    clinical staff legitimately need to see hospital-scoped read data
+    (patient report, dashboard, followups) even if they're not a
+    hospital_admin/content_manager.
+    """
     assignments = (
         db.query(AdminRoleAssignment)
         .filter(AdminRoleAssignment.admin_user_id == admin.id)
@@ -121,13 +120,24 @@ def require_hospital_scope(admin: AdminUser, db: Session, hospital_id: uuid.UUID
     for a in assignments:
         if a.role.code == RoleCode.SUPER_ADMIN and a.hospital_id is None:
             return True
-        if a.hospital_id == hospital_id and a.role.code in _HOSPITAL_SCOPED_ROLES:
+        if a.hospital_id == hospital_id and a.role.code in (
+            RoleCode.HOSPITAL_ADMIN, RoleCode.DEPARTMENT_ADMIN,
+            RoleCode.CONTENT_MANAGER, RoleCode.DOCTOR,
+        ):
             return True
 
     return False
 
 
 def require_department_scope(admin: AdminUser, db: Session, hospital_id: uuid.UUID, department_id: uuid.UUID) -> bool:
+    """
+    True if the admin can act on this specific department. A DOCTOR
+    (or DEPARTMENT_ADMIN) assignment with department_id=None means
+    "this whole hospital" (a hospital-wide doctor, not tied to one
+    department) - previously only an exact department_id match was
+    accepted, which silently locked out any doctor assigned without a
+    specific department.
+    """
     assignments = (
         db.query(AdminRoleAssignment)
         .filter(AdminRoleAssignment.admin_user_id == admin.id)
@@ -144,7 +154,9 @@ def require_department_scope(admin: AdminUser, db: Session, hospital_id: uuid.UU
         if a.role.code in (RoleCode.HOSPITAL_ADMIN, RoleCode.CONTENT_MANAGER) and a.department_id is None:
             return True
 
-        if a.role.code in (RoleCode.DEPARTMENT_ADMIN, RoleCode.DOCTOR) and a.department_id == department_id:
+        if a.role.code in (RoleCode.DEPARTMENT_ADMIN, RoleCode.DOCTOR) and (
+            a.department_id == department_id or a.department_id is None
+        ):
             return True
 
     return False

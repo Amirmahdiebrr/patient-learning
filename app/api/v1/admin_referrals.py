@@ -4,12 +4,12 @@ app/api/v1/admin_referrals.py
 Admin-facing referral intake (manual entry), listing/review, and
 hospital API key management for the HIS integration path.
 
-Path note: this used to be GET/POST /admin/referrals, which collided
-with the HTML page route (GET /admin/referrals in admin_panel.py) -
-FastAPI resolves routers in registration order, so the API router
-(registered first in main.py) always won, and the HTML page never
-rendered. Renamed to /admin/hospital-referrals to remove the
-collision; admin/referrals.html's JS was updated to match.
+NOTE: the referral-record endpoints live under /admin/hospital-referrals
+(not /admin/referrals) specifically to avoid colliding with the
+/admin/referrals HTML page route in admin_panel.py - both are GET,
+and Starlette matches routes by iterating registration order, so a
+shared path there would non-deterministically shadow one or the
+other depending on router registration order in main.py.
 """
 
 import hashlib

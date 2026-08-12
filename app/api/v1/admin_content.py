@@ -9,13 +9,6 @@ building it once makes it available to every hospital that has a
 Department of that type. Only super_admin and content_manager may
 create/edit it.
 
-Hospital-scoped writes (hospital-override lessons, and targeting
-rules that name a specific hospital) additionally require
-ensure_hospital_access - otherwise a content_manager scoped only to
-hospital A could create/override content for hospital B, since
-require_content_editor only checks the ROLE, not which hospital that
-role is scoped to.
-
 QuizQuestion now targets EITHER one Lesson OR an entire JourneyStage
 (optionally scoped to one department type) - see
 QuizQuestionCreateRequest's model validator for the exclusivity rule.
@@ -28,6 +21,13 @@ Deletion policy:
   section instead).
 - Lesson: hard-deletable any time; MediaAsset/QuizQuestion/
   ContentTargetingRule cascade automatically (see content.py model).
+
+Hospital-specific writes (hospital override lessons, targeting rules
+scoped to a hospital) additionally check ensure_hospital_access, so a
+content_manager whose role assignment is scoped to one hospital (or
+who has none at all) can't touch another hospital's data just by
+being a content_manager - see create_hospital_override and
+create_content_targeting_rule below.
 """
 
 import uuid
@@ -567,8 +567,10 @@ async def create_hospital_override(
     if not hospital:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بیمارستان پیدا نشد.")
 
-    # content_manager یا سایر نقش‌های hospital-scoped فقط برای
-    # بیمارستان‌هایی که واقعاً بهشون اختصاص یافته‌اند مجاز به override‌اند.
+    # A hospital override is hospital-specific content - a content_manager
+    # scoped to a different hospital (or with no hospital scope at all)
+    # must not be able to create one here, even though require_content_editor
+    # already confirmed they hold the content_manager/super_admin role.
     ensure_hospital_access(admin, db, payload.hospital_id)
 
     existing = (
@@ -769,8 +771,9 @@ async def create_content_targeting_rule(
         if not hospital:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "بیمارستان پیدا نشد.")
 
-        # فقط وقتی rule یک بیمارستان خاص رو هدف می‌گیره چک اسکوپ لازمه؛
-        # rule بدون hospital_id (عمومی) از قبل توسط require_content_editor کنترل شده.
+        # Same reasoning as create_hospital_override: a rule scoped to
+        # one hospital is hospital-specific data, so the acting admin
+        # must actually have access to THAT hospital.
         ensure_hospital_access(admin, db, payload.hospital_id)
 
     if payload.department_id:

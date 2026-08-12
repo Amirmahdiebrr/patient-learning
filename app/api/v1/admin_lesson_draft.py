@@ -7,6 +7,10 @@ publishing. See app/services/lesson_draft_prompt.py for the prompt
 itself - this is a DRAFT ONLY, never shown to a patient directly; a
 human must approve it via the normal POST /admin/lessons endpoint
 (app/api/v1/admin_content.py::create_lesson).
+
+Takes department_type_id (not a real hospital Department id) because
+the content builder in panel.html works at the department_type level
+(shared library), not against one hospital's actual Department rows.
 """
 
 import uuid
@@ -16,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import AdminUser, RoleCode, JourneyStage, Department
+from app.infrastructure.db.models import AdminUser, RoleCode, JourneyStage, StandardDepartmentType
 from app.api.deps_admin import ScopeCheck
 from app.services.lesson_draft_prompt import build_lesson_draft_prompt
 from app.infrastructure.external.ai_provider import ask_ai, AIProviderError
@@ -31,7 +35,7 @@ require_content_editor = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN, RoleCod
 
 class LessonDraftGenerateRequest(BaseModel):
     journey_stage_id: uuid.UUID
-    department_id: uuid.UUID | None = None
+    department_type_id: uuid.UUID | None = None
     has_surgery: bool | None = None
     topic_hint: str | None = Field(default=None, max_length=255)
 
@@ -50,12 +54,14 @@ async def generate_lesson_draft(
     if not stage:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "مرحله‌ی سفر بیمار پیدا نشد.")
 
-    department_name = "عمومی (بدون بخش خاص)"
-    if payload.department_id:
-        department = db.query(Department).filter(Department.id == payload.department_id).first()
-        if not department:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد.")
-        department_name = department.name
+    department_name = "عمومی (همه‌ی بخش‌ها)"
+    if payload.department_type_id:
+        dept_type = db.query(StandardDepartmentType).filter(
+            StandardDepartmentType.id == payload.department_type_id
+        ).first()
+        if not dept_type:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "نوع بخش استاندارد پیدا نشد.")
+        department_name = dept_type.name
 
     prompt = build_lesson_draft_prompt(
         department_name=department_name,
