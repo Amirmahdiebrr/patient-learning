@@ -94,7 +94,7 @@
         STAGES.map(function (s) { return `<option value="${s[0]}">${s[1]}</option>`; }).join("");
 
     async function loadHospitals() {
-        const hospitals = await api("/admin/hospitals");
+        const hospitals = await api("/admin/my-hospitals");
         hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
             hospitals.map(function (h) { return `<option value="${h.id}">${escapeHtml(h.name)}</option>`; }).join("");
     }

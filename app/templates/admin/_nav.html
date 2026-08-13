@@ -5,14 +5,19 @@
     <a href="/admin/dashboard" class="cl-admin-nav-link {% if active_page == 'dashboard' %}cl-admin-nav-link-active{% endif %}">
         📊 داشبورد
     </a>
+    {% if is_full_admin %}
     <a href="/admin/panel" class="cl-admin-nav-link {% if active_page == 'content' %}cl-admin-nav-link-active{% endif %}">
         📚 سازنده‌ی محتوا
     </a>
+    {% endif %}
     <a href="/admin/patients" class="cl-admin-nav-link {% if active_page == 'patients' %}cl-admin-nav-link-active{% endif %}">
         🧑‍⚕️ گزارش بیماران
     </a>
     <a href="/admin/referrals" class="cl-admin-nav-link {% if active_page == 'referrals' %}cl-admin-nav-link-active{% endif %}">
         📥 ارجاعات بیمارستان
+    </a>
+    <a href="/admin/qr-codes" class="cl-admin-nav-link {% if active_page == 'qr_codes' %}cl-admin-nav-link-active{% endif %}">
+        🔗 کدهای QR
     </a>
     <button id="admin-logout-btn" class="cl-admin-nav-link cl-admin-nav-logout">خروج</button>
 </div>

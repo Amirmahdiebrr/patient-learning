@@ -34,6 +34,13 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 _SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 
+# Roles that see the full admin portal (org structure, content
+# builder, admin-user management, audit log) vs. roles that only see
+# the hospital portal (referrals, patient monitoring, QR codes) -
+# used by admin_panel.py to gate pages and _nav.html to hide/show
+# links, not just by ScopeCheck for API access.
+_FULL_ADMIN_ROLES = (RoleCode.SUPER_ADMIN, RoleCode.CONTENT_MANAGER)
+
 
 def get_current_admin(
     request: Request,
@@ -105,10 +112,10 @@ class ScopeCheck:
 def require_hospital_scope(admin: AdminUser, db: Session, hospital_id: uuid.UUID) -> bool:
     """
     True if the admin can act on hospital-scoped resources for this
-    hospital. Includes DOCTOR now - a doctor's assignment always
-    carries a hospital_id (see admin_users.py's scoped_roles set), and
-    clinical staff legitimately need to see hospital-scoped read data
-    (patient report, dashboard, followups) even if they're not a
+    hospital. Includes DOCTOR - a doctor's assignment always carries a
+    hospital_id (see admin_users.py's scoped_roles set), and clinical
+    staff legitimately need to see hospital-scoped read data (patient
+    report, dashboard, followups) even if they're not a
     hospital_admin/content_manager.
     """
     assignments = (
@@ -134,9 +141,7 @@ def require_department_scope(admin: AdminUser, db: Session, hospital_id: uuid.UU
     True if the admin can act on this specific department. A DOCTOR
     (or DEPARTMENT_ADMIN) assignment with department_id=None means
     "this whole hospital" (a hospital-wide doctor, not tied to one
-    department) - previously only an exact department_id match was
-    accepted, which silently locked out any doctor assigned without a
-    specific department.
+    department).
     """
     assignments = (
         db.query(AdminRoleAssignment)
@@ -160,3 +165,21 @@ def require_department_scope(admin: AdminUser, db: Session, hospital_id: uuid.UU
             return True
 
     return False
+
+
+def is_full_admin(admin: AdminUser, db: Session) -> bool:
+    """
+    True if this admin should see the "admin portal" surface (content
+    builder, org-structure management, admin-user management, audit
+    log) rather than just the "hospital portal" surface (referrals,
+    patient monitoring, QR codes). A global super_admin or any
+    content_manager assignment counts as full-admin; hospital_admin/
+    department_admin/doctor are hospital-portal-only, regardless of
+    how many hospitals they're scoped to.
+    """
+    assignments = (
+        db.query(AdminRoleAssignment)
+        .filter(AdminRoleAssignment.admin_user_id == admin.id)
+        .all()
+    )
+    return any(a.role.code in _FULL_ADMIN_ROLES for a in assignments)

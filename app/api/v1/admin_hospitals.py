@@ -24,7 +24,9 @@ from sqlalchemy.orm import Session
 from app.core.event_bus import event_bus
 from app.core.events import AdminContentAction
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import Hospital, Department, RoleCode, StandardDepartmentType, AdminUser
+from app.infrastructure.db.models import (
+    Hospital, Department, RoleCode, StandardDepartmentType, AdminUser, AdminRoleAssignment,
+)
 from app.schemas.admin import (
     HospitalCreateRequest, HospitalUpdateRequest, HospitalResponse,
     DepartmentCreateRequest, DepartmentUpdateRequest, DepartmentResponse,
@@ -106,6 +108,43 @@ async def list_hospitals(
     if search:
         query = query.filter(Hospital.name.ilike(f"%{search}%"))
     return query.order_by(Hospital.name).all()
+
+
+@router.get("/my-hospitals", response_model=list[HospitalResponse])
+async def list_my_hospitals(
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Unlike /admin/hospitals (every active hospital, used by the
+    full-admin org-structure page), this returns ONLY the hospitals
+    the current admin actually has scope over - used by the hospital
+    portal pages (dashboard, patients, referrals, QR codes) so a
+    hospital_admin/department_admin/doctor doesn't see every
+    hospital in the platform in their selector.
+    """
+    assignments = (
+        db.query(AdminRoleAssignment)
+        .filter(AdminRoleAssignment.admin_user_id == admin.id)
+        .all()
+    )
+
+    is_global_super_admin = any(
+        a.role.code == RoleCode.SUPER_ADMIN and a.hospital_id is None for a in assignments
+    )
+    if is_global_super_admin:
+        return db.query(Hospital).filter(Hospital.is_active.is_(True)).order_by(Hospital.name).all()
+
+    hospital_ids = {a.hospital_id for a in assignments if a.hospital_id is not None}
+    if not hospital_ids:
+        return []
+
+    return (
+        db.query(Hospital)
+        .filter(Hospital.id.in_(hospital_ids), Hospital.is_active.is_(True))
+        .order_by(Hospital.name)
+        .all()
+    )
 
 
 @router.patch("/hospitals/{hospital_id}", response_model=HospitalResponse)

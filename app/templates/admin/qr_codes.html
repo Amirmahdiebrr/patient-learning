@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}کدهای QR | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="margin-top:24px;">
+        <h1>کدهای QR</h1>
+        <p class="cl-sub">هر کد QR به یک بخش مشخص وصل است. این کد را چاپ کن و سر در ورودی همان بخش نصب کن؛ اسکن آن بیمار را مستقیم وارد مسیر آموزشی همان بخش می‌کند.</p>
+
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label>بیمارستان</label>
+                <select id="qr-hospital-select"><option value="">— انتخاب کنید —</option></select>
+            </div>
+            <div class="cl-field">
+                <label>بخش</label>
+                <select id="qr-department-select"><option value="">— ابتدا بیمارستان را انتخاب کنید —</option></select>
+            </div>
+        </div>
+    </div>
+
+    <div id="qr-content" style="display:none;">
+
+        <div class="cl-card cl-admin-card">
+            <h2 class="cl-admin-h2">ساخت کد QR جدید</h2>
+            <div class="cl-admin-inline-form">
+                <input type="text" id="qr-label" placeholder="برچسب (مثلاً: ورودی بخش ارتوپدی - طبقه ۲)">
+                <button id="qr-create-btn" class="cl-btn cl-btn-sm">+ ساخت QR جدید</button>
+            </div>
+        </div>
+
+        <div class="cl-card cl-admin-card">
+            <h2 class="cl-admin-h2">کدهای این بیمارستان</h2>
+            <div id="qr-list"></div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function api(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        options.headers = Object.assign(
+            { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) {
+            window.location.href = "/admin/login";
+            throw new Error("unauthorized");
+        }
+        if (res.status === 204) return null;
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    const hospitalSelect = document.getElementById("qr-hospital-select");
+    const departmentSelect = document.getElementById("qr-department-select");
+    const qrContent = document.getElementById("qr-content");
+    const qrList = document.getElementById("qr-list");
+
+    let currentHospitalId = null;
+    let departmentNameById = {};
+
+    async function loadMyHospitals() {
+        const hospitals = await api("/admin/my-hospitals");
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${escapeHtml(h.name)}</option>`; }).join("");
+    }
+
+    async function loadDepartments(hospitalId) {
+        const departments = await api(`/admin/hospitals/${hospitalId}/departments`);
+        departmentNameById = {};
+        departments.forEach(function (d) { departmentNameById[d.id] = d.name; });
+
+        departmentSelect.innerHTML = departments.length === 0
+            ? '<option value="">— این بیمارستان هنوز بخشی ندارد —</option>'
+            : '<option value="">— انتخاب کنید —</option>' +
+              departments.map(function (d) { return `<option value="${d.id}">${escapeHtml(d.name)}</option>`; }).join("");
+    }
+
+    async function loadQrList(hospitalId) {
+        const points = await api(`/admin/qr-access-points?hospital_id=${hospitalId}`);
+        qrList.innerHTML = points.length === 0
+            ? '<p class="cl-admin-empty">هنوز کد QR ای ساخته نشده.</p>'
+            : points.map(function (p) {
+                const statusBadge = p.status === "active"
+                    ? '<span class="cl-admin-badge cl-admin-badge-live">فعال</span>'
+                    : '<span class="cl-admin-badge cl-admin-badge-draft">باطل‌شده</span>';
+                const deptName = departmentNameById[p.department_id] || "—";
+                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(p.entry_url)}`;
+                return `<div class="cl-admin-lesson-row">
+                    <div class="cl-admin-lesson-head">
+                        <strong>${escapeHtml(p.label || "بدون برچسب")}</strong>
+                        ${statusBadge}
+                        <span style="font-size:11.5px; color:#8CA0B3;">بخش: ${escapeHtml(deptName)}</span>
+                        ${p.status === "active" ? `<button class="cl-btn cl-btn-sm cl-btn-outline" data-revoke="${p.id}">باطل کردن</button>` : ""}
+                    </div>
+                    <div style="display:flex; gap:16px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+                        <img src="${qrImageUrl}" alt="QR" style="border-radius:10px; border:1px solid var(--line);">
+                        <div style="flex:1; min-width:200px;">
+                            <p style="font-size:12.5px; color:#8CA0B3; margin:0 0 6px;">لینک ورود:</p>
+                            <p style="font-size:12.5px; word-break:break-all; margin:0;"><a href="${p.entry_url}" target="_blank">${p.entry_url}</a></p>
+                        </div>
+                    </div>
+                </div>`;
+            }).join("");
+
+        qrList.querySelectorAll("[data-revoke]").forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                const confirmed = await AdminModal.confirm("این کد QR باطل شود؟ دیگر هیچ بیماری با اسکن آن وارد نمی‌شود.");
+                if (!confirmed) return;
+                try {
+                    await api(`/admin/qr-access-points/${btn.dataset.revoke}/revoke`, { method: "POST" });
+                    AdminToast.success("کد QR باطل شد.");
+                    await loadQrList(currentHospitalId);
+                } catch (err) {
+                    AdminToast.error(err.message);
+                }
+            });
+        });
+    }
+
+    hospitalSelect.addEventListener("change", async function () {
+        currentHospitalId = hospitalSelect.value || null;
+        if (currentHospitalId) {
+            qrContent.style.display = "block";
+            await loadDepartments(currentHospitalId);
+            await loadQrList(currentHospitalId);
+        } else {
+            qrContent.style.display = "none";
+            departmentSelect.innerHTML = '<option value="">— ابتدا بیمارستان را انتخاب کنید —</option>';
+        }
+    });
+
+    document.getElementById("qr-create-btn").addEventListener("click", async function () {
+        const departmentId = departmentSelect.value;
+        const label = document.getElementById("qr-label").value.trim();
+
+        if (!currentHospitalId) { AdminToast.error("اول بیمارستان را انتخاب کنید."); return; }
+        if (!departmentId) { AdminToast.error("اول بخش را انتخاب کنید."); return; }
+
+        try {
+            await api("/admin/qr-access-points", {
+                method: "POST",
+                body: JSON.stringify({ hospital_id: currentHospitalId, department_id: departmentId, label: label || null }),
+            });
+            document.getElementById("qr-label").value = "";
+            AdminToast.success("کد QR ساخته شد.");
+            await loadQrList(currentHospitalId);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    (async function init() {
+        await loadMyHospitals();
+    })();
+})();
+</script>
+{% endblock %}
