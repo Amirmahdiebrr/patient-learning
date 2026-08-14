@@ -1,3 +1,4 @@
+# app/api/v1/admin_panel.py
 """
 app/api/v1/admin_panel.py
 
@@ -12,6 +13,9 @@ straight to /admin/login. Every page also gets:
     app/api/deps_admin.py::is_full_admin. /admin/panel additionally
     hard-redirects non-full-admins away, since URL-guessing shouldn't
     be enough to reach the content builder.
+
+/admin/register-hospital is public (no auth) - it's how a hospital
+signs itself up for a HOSPITAL_ADMIN account in the first place.
 """
 
 from fastapi import APIRouter, Depends, Request
@@ -64,6 +68,11 @@ def _render_admin_page(
 @router.get("/login")
 async def admin_login_page(request: Request):
     return templates.TemplateResponse(request, "admin/login.html", {"request": request})
+
+
+@router.get("/register-hospital")
+async def admin_register_hospital_page(request: Request):
+    return templates.TemplateResponse(request, "admin/register_hospital.html", {"request": request})
 
 
 @router.get("/home")

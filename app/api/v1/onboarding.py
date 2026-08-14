@@ -1,5 +1,12 @@
+# app/api/v1/onboarding.py
 """
 app/api/v1/onboarding.py
+
+Used by the QR flow (patient already has a profile bound to a
+hospital/department via QR or self-service registration, but still
+needs to fill in identity + health details). Self-service patients
+skip this entirely since /patient-auth/register collects everything
+up front.
 """
 
 from datetime import datetime
@@ -43,8 +50,8 @@ async def onboarding_form(
             "request": request,
             "diseases": diseases,
             "treatments": treatments,
-            "department": context.qr_access_point.department,
-            "hospital": context.qr_access_point.hospital,
+            "department": context.department,
+            "hospital": context.hospital,
         },
     )
 
@@ -107,7 +114,7 @@ async def onboarding_submit(
     try:
         transition_stage(
             db, journey, target_stage,
-            hospital_id=context.qr_access_point.hospital_id,
+            hospital_id=context.hospital_id,
             triggered_by="automatic",
         )
     except InvalidStageTransitionError:
@@ -115,8 +122,8 @@ async def onboarding_submit(
 
     event_bus.publish(PatientRegistered(
         patient_access_profile_id=context.patient_profile.id,
-        hospital_id=context.qr_access_point.hospital_id,
-        department_id=context.qr_access_point.department_id,
+        hospital_id=context.hospital_id,
+        department_id=context.department_id,
     ))
 
     return RedirectResponse(url="/home", status_code=303)

@@ -1,9 +1,10 @@
+# app/schemas/admin.py
 """
 app/schemas/admin.py
 
 Pydantic v2 DTOs for admin CRUD operations (hospitals, departments,
 QR access points, admin users, role assignments, standard department
-types).
+types) plus hospital self-service signup.
 """
 
 import uuid
@@ -126,3 +127,12 @@ class RoleAssignmentResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---- Hospital self-service signup ----
+
+class HospitalSignupRequest(BaseModel):
+    hospital_name: str = Field(min_length=2, max_length=255)
+    admin_full_name: str = Field(min_length=2, max_length=255)
+    admin_email: EmailStr
+    admin_password: str = Field(min_length=8, max_length=128)

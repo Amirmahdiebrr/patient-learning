@@ -1,0 +1,168 @@
+{# app/templates/patient_register.html #}
+{% extends "base.html" %}
+{% block title %}ثبت‌نام بیمار | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container">
+    <div class="cl-card">
+        <h1>ثبت‌نام بیمار</h1>
+        <p class="cl-sub">اطلاعات خود را برای دسترسی به مسیر آموزشی وارد کنید.</p>
+
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label for="hospital_id">بیمارستان</label>
+                <select id="hospital_id"><option value="">— انتخاب کنید —</option></select>
+            </div>
+            <div class="cl-field">
+                <label for="department_id">بخش</label>
+                <select id="department_id"><option value="">— ابتدا بیمارستان را انتخاب کنید —</option></select>
+            </div>
+        </div>
+
+        <div class="cl-field"><label for="first_name">نام</label><input type="text" id="first_name"></div>
+        <div class="cl-field"><label for="last_name">نام خانوادگی</label><input type="text" id="last_name"></div>
+        <div class="cl-field"><label for="national_id">کد ملی</label><input type="text" id="national_id" inputmode="numeric" maxlength="10"></div>
+        <div class="cl-field"><label for="phone_number">شماره همراه</label><input type="tel" id="phone_number" inputmode="numeric" maxlength="11" placeholder="09xxxxxxxxx"></div>
+        <div class="cl-field"><label for="insurance_code">کد بیمه (اختیاری)</label><input type="text" id="insurance_code"></div>
+        <div class="cl-field"><label for="password">رمز عبور</label><input type="password" id="password"></div>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:24px 0;">
+
+        <div class="cl-field">
+            <label for="disease_id">بیماری / علت مراجعه</label>
+            <select id="disease_id"><option value="">— انتخاب کنید —</option></select>
+        </div>
+        <div class="cl-field">
+            <label for="treatment_id">نوع درمان / عمل</label>
+            <select id="treatment_id"><option value="">— انتخاب کنید —</option></select>
+        </div>
+        <div class="cl-field">
+            <label>آیا قرار است عمل جراحی داشته باشید؟</label>
+            <div class="cl-radio-group">
+                <label><input type="radio" name="has_surgery" value="yes"> بله</label>
+                <label><input type="radio" name="has_surgery" value="no"> خیر</label>
+            </div>
+        </div>
+        <div class="cl-field"><label for="age">سن</label><input type="number" id="age" min="0" max="120"></div>
+        <div class="cl-field">
+            <label for="gender">جنسیت</label>
+            <select id="gender">
+                <option value="">— انتخاب کنید —</option>
+                <option value="female">زن</option>
+                <option value="male">مرد</option>
+                <option value="other">سایر</option>
+            </select>
+        </div>
+
+        <p id="register-error" style="color:var(--warn); font-size:13.5px; display:none;"></p>
+
+        <button id="register-btn" class="cl-btn">ثبت‌نام و ورود</button>
+
+        <p class="cl-sub" style="margin-top:18px; margin-bottom:0;">
+            قبلاً ثبت‌نام کرده‌اید؟ <a href="/login" style="color:var(--accent); font-weight:700;">وارد شوید</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const hospitalSelect = document.getElementById("hospital_id");
+    const departmentSelect = document.getElementById("department_id");
+    const diseaseSelect = document.getElementById("disease_id");
+    const treatmentSelect = document.getElementById("treatment_id");
+    let treatmentsByDisease = {};
+
+    async function loadHospitals() {
+        const res = await fetch("/patient-auth/hospitals");
+        const hospitals = await res.json();
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${h.name}</option>`; }).join("");
+    }
+
+    async function loadDepartments(hospitalId) {
+        const res = await fetch(`/patient-auth/hospitals/${hospitalId}/departments`);
+        const departments = await res.json();
+        departmentSelect.innerHTML = departments.length === 0
+            ? '<option value="">— این بیمارستان بخشی ندارد —</option>'
+            : '<option value="">— انتخاب کنید —</option>' +
+              departments.map(function (d) { return `<option value="${d.id}">${d.name}</option>`; }).join("");
+    }
+
+    async function loadOnboardingOptions() {
+        const res = await fetch("/patient-auth/onboarding-options");
+        const data = await res.json();
+        treatmentsByDisease = data.treatments_by_disease;
+        diseaseSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            data.diseases.map(function (d) { return `<option value="${d.id}">${d.name}</option>`; }).join("");
+    }
+
+    hospitalSelect.addEventListener("change", function () {
+        if (hospitalSelect.value) loadDepartments(hospitalSelect.value);
+        else departmentSelect.innerHTML = '<option value="">— ابتدا بیمارستان را انتخاب کنید —</option>';
+    });
+
+    diseaseSelect.addEventListener("change", function () {
+        const opts = treatmentsByDisease[diseaseSelect.value] || [];
+        treatmentSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            opts.map(function (t) { return `<option value="${t.id}">${t.name}</option>`; }).join("");
+    });
+
+    const errorEl = document.getElementById("register-error");
+
+    document.getElementById("register-btn").addEventListener("click", async function () {
+        errorEl.style.display = "none";
+
+        const hasSurgeryEl = document.querySelector('input[name="has_surgery"]:checked');
+
+        const payload = {
+            hospital_id: hospitalSelect.value || null,
+            department_id: departmentSelect.value || null,
+            first_name: document.getElementById("first_name").value.trim(),
+            last_name: document.getElementById("last_name").value.trim(),
+            national_id: document.getElementById("national_id").value.trim(),
+            phone_number: document.getElementById("phone_number").value.trim(),
+            insurance_code: document.getElementById("insurance_code").value.trim() || null,
+            password: document.getElementById("password").value,
+            disease_id: diseaseSelect.value || null,
+            treatment_id: treatmentSelect.value || null,
+            has_surgery: hasSurgeryEl ? hasSurgeryEl.value === "yes" : null,
+            age: document.getElementById("age").value ? parseInt(document.getElementById("age").value, 10) : null,
+            gender: document.getElementById("gender").value || null,
+        };
+
+        if (!payload.hospital_id || !payload.department_id) {
+            errorEl.textContent = "بیمارستان و بخش را انتخاب کنید.";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        try {
+            const res = await fetch("/patient-auth/register", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                errorEl.textContent = data.detail || "ثبت‌نام ناموفق بود.";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            window.location.href = data.redirect_url || "/home";
+        } catch (err) {
+            errorEl.textContent = "ارتباط با سرور برقرار نشد.";
+            errorEl.style.display = "block";
+        }
+    });
+
+    (async function init() {
+        await loadHospitals();
+        await loadOnboardingOptions();
+    })();
+})();
+</script>
+{% endblock %}

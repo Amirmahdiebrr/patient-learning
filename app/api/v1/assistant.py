@@ -1,3 +1,4 @@
+# app/api/v1/assistant.py
 """
 app/api/v1/assistant.py
 
@@ -56,9 +57,9 @@ async def ask_assistant(
             journey,
             payload.question,
             payload.history,
-            hospital_id=context.qr_access_point.hospital_id,
-            department_id=context.qr_access_point.department_id,
-            department_type_id=context.qr_access_point.department.department_type_id,
+            hospital_id=context.hospital_id,
+            department_id=context.department_id,
+            department_type_id=context.department.department_type_id,
         )
     except AIProviderError as exc:
         return JSONResponse({"error": str(exc)}, status_code=503)

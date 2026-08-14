@@ -1,0 +1,64 @@
+{# app/templates/admin/register_hospital.html #}
+{% extends "base.html" %}
+{% block title %}ثبت‌نام بیمارستان | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container">
+    <div class="cl-card" style="max-width:460px;">
+        <h1>ثبت‌نام بیمارستان</h1>
+        <p class="cl-sub">با ثبت‌نام، یک حساب ادمین بیمارستان برای ارجاع بیماران و رصد آموزش آن‌ها ساخته می‌شود.</p>
+
+        <div class="cl-field"><label for="hospital_name">نام بیمارستان</label><input type="text" id="hospital_name"></div>
+        <div class="cl-field"><label for="admin_full_name">نام و نام خانوادگی مسئول</label><input type="text" id="admin_full_name"></div>
+        <div class="cl-field"><label for="admin_email">ایمیل</label><input type="email" id="admin_email"></div>
+        <div class="cl-field"><label for="admin_password">رمز عبور</label><input type="password" id="admin_password"></div>
+
+        <p id="register-error" style="color:var(--warn); font-size:13.5px; display:none;"></p>
+
+        <button id="register-btn" class="cl-btn">ثبت‌نام و ورود</button>
+
+        <p class="cl-sub" style="margin-top:18px; margin-bottom:0;">
+            حساب دارید؟ <a href="/admin/login" style="color:var(--accent); font-weight:700;">ورود</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const btn = document.getElementById("register-btn");
+    const errorEl = document.getElementById("register-error");
+
+    btn.addEventListener("click", async function () {
+        errorEl.style.display = "none";
+        const payload = {
+            hospital_name: document.getElementById("hospital_name").value.trim(),
+            admin_full_name: document.getElementById("admin_full_name").value.trim(),
+            admin_email: document.getElementById("admin_email").value.trim(),
+            admin_password: document.getElementById("admin_password").value,
+        };
+
+        try {
+            const res = await fetch("/admin/auth/register-hospital", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                errorEl.textContent = data.detail || "ثبت‌نام ناموفق بود.";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            window.location.href = "/admin/home";
+        } catch (err) {
+            errorEl.textContent = "ارتباط با سرور برقرار نشد.";
+            errorEl.style.display = "block";
+        }
+    });
+})();
+</script>
+{% endblock %}

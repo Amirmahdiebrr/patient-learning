@@ -1,3 +1,4 @@
+# app/api/v1/patient_home.py
 """
 app/api/v1/patient_home.py
 
@@ -30,13 +31,13 @@ async def patient_home(
     if not journey.onboarding_completed_at:
         return RedirectResponse(url="/onboarding", status_code=303)
 
-    department = context.qr_access_point.department
+    department = context.department
 
     lessons = get_lessons_for_journey(
         db,
         journey,
-        hospital_id=context.qr_access_point.hospital_id,
-        department_id=context.qr_access_point.department_id,
+        hospital_id=context.hospital_id,
+        department_id=context.department_id,
         department_type_id=department.department_type_id,
     )
 
@@ -54,7 +55,7 @@ async def patient_home(
             "lessons": lessons,
             "stage_quiz_questions": stage_quiz_questions,
             "journey": journey,
-            "hospital": context.qr_access_point.hospital,
+            "hospital": context.hospital,
             "department": department,
         },
     )

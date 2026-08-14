@@ -1,3 +1,4 @@
+# app/api/v1/welcome.py
 """
 app/api/v1/welcome.py
 """
@@ -28,13 +29,13 @@ async def welcome_page(
     if journey.onboarding_completed_at:
         return RedirectResponse(url="/home", status_code=303)
 
-    department = context.qr_access_point.department
+    department = context.department
 
     lessons = get_lessons_for_journey(
         db,
         journey,
-        hospital_id=context.qr_access_point.hospital_id,
-        department_id=context.qr_access_point.department_id,
+        hospital_id=context.hospital_id,
+        department_id=context.department_id,
         department_type_id=department.department_type_id,
     )
 
@@ -46,7 +47,7 @@ async def welcome_page(
         {
             "request": request,
             "lessons": lessons,
-            "hospital": context.qr_access_point.hospital,
+            "hospital": context.hospital,
             "department": department,
             "csrf_token": csrf_token,
         },
@@ -71,7 +72,7 @@ async def welcome_continue(
     try:
         transition_stage(
             db, journey, JourneyStageCode.ADMISSION,
-            hospital_id=context.qr_access_point.hospital_id,
+            hospital_id=context.hospital_id,
             triggered_by="automatic",
         )
     except InvalidStageTransitionError:

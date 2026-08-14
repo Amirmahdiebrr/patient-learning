@@ -1,3 +1,4 @@
+# app/schemas/patient.py
 """
 app/schemas/patient.py
 """
@@ -74,3 +75,60 @@ class LessonProgressUpdateRequest(BaseModel):
 
 class QuizAttemptRequest(BaseModel):
     option_id: uuid.UUID
+
+
+# ==========================
+# Self-service patient auth (no QR needed)
+# ==========================
+
+class PatientSelfRegisterRequest(BaseModel):
+    hospital_id: uuid.UUID
+    department_id: uuid.UUID
+
+    first_name: str = Field(min_length=1, max_length=255)
+    last_name: str = Field(min_length=1, max_length=255)
+    national_id: str = Field(min_length=8, max_length=20)
+    phone_number: str = Field(min_length=8, max_length=20)
+    insurance_code: str | None = Field(default=None, max_length=100)
+    password: str = Field(min_length=8, max_length=128)
+
+    disease_id: uuid.UUID | None = None
+    treatment_id: uuid.UUID | None = None
+    has_surgery: bool | None = None
+    age: int | None = Field(default=None, ge=0, le=120)
+    gender: str | None = None
+
+    @field_validator("national_id")
+    @classmethod
+    def validate_national_id(cls, value: str) -> str:
+        digits = value.strip()
+        if not re.fullmatch(r"\d{10}", digits):
+            raise ValueError("کد ملی باید دقیقاً ۱۰ رقم باشد.")
+        return digits
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, value: str) -> str:
+        digits = value.strip()
+        if not re.fullmatch(r"09\d{9}", digits):
+            raise ValueError("شماره همراه باید با ۰۹ شروع شود و ۱۱ رقم باشد.")
+        return digits
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        allowed = {"male", "female", "other"}
+        if value not in allowed:
+            raise ValueError("gender باید یکی از این مقادیر باشد: male, female, other")
+        return value
+
+
+class PatientLoginRequest(BaseModel):
+    national_id: str = Field(min_length=8, max_length=20)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class PatientSelfAuthResponse(BaseModel):
+    redirect_url: str

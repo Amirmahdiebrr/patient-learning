@@ -1,15 +1,15 @@
-{# app/templates/admin/login.html #}
+{# app/templates/patient_login.html #}
 {% extends "base.html" %}
-{% block title %}ورود ادمین | CuraLink{% endblock %}
+{% block title %}ورود بیمار | CuraLink{% endblock %}
 {% block content %}
 <div class="cl-container">
     <div class="cl-card" style="max-width:420px;">
-        <h1>ورود پنل مدیریت</h1>
-        <p class="cl-sub">با ایمیل و رمز عبور ادمین وارد شوید.</p>
+        <h1>ورود بیمار</h1>
+        <p class="cl-sub">با کد ملی و رمز عبوری که هنگام ثبت‌نام تعیین کردید وارد شوید.</p>
 
         <div class="cl-field">
-            <label for="email">ایمیل</label>
-            <input type="email" id="email" placeholder="admin@example.com">
+            <label for="national_id">کد ملی</label>
+            <input type="text" id="national_id" inputmode="numeric" maxlength="10">
         </div>
 
         <div class="cl-field">
@@ -22,7 +22,7 @@
         <button id="login-btn" class="cl-btn">ورود</button>
 
         <p class="cl-sub" style="margin-top:18px; margin-bottom:0;">
-            حساب بیمارستان ندارید؟ <a href="/admin/register-hospital" style="color:var(--accent); font-weight:700;">ثبت‌نام بیمارستان</a>
+            حساب ندارید؟ <a href="/register" style="color:var(--accent); font-weight:700;">ثبت‌نام کنید</a>
         </p>
     </div>
 </div>
@@ -35,16 +35,16 @@
     const errorEl = document.getElementById("login-error");
 
     btn.addEventListener("click", async function () {
-        const email = document.getElementById("email").value.trim();
+        const national_id = document.getElementById("national_id").value.trim();
         const password = document.getElementById("password").value;
         errorEl.style.display = "none";
 
         try {
-            const res = await fetch("/admin/auth/login", {
+            const res = await fetch("/patient-auth/login", {
                 method: "POST",
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ national_id, password }),
             });
             const data = await res.json();
 
@@ -54,7 +54,7 @@
                 return;
             }
 
-            window.location.href = "/admin/home";
+            window.location.href = data.redirect_url || "/home";
         } catch (err) {
             errorEl.textContent = "ارتباط با سرور برقرار نشد.";
             errorEl.style.display = "block";

@@ -1,3 +1,4 @@
+# app/infrastructure/db/models/access.py
 """
 app/infrastructure/db/models/access.py
 
@@ -6,16 +7,22 @@ PatientAccessProfile, plus the standardized department taxonomy
 (StandardDepartmentType) used to classify departments consistently
 across hospitals.
 
+PatientAccessProfile can now be created two ways:
+  1. QR flow: qr_access_point_id is set, hospital_id/department_id
+     stay NULL, and get_access_context resolves hospital/department
+     via the QR access point (see app/api/deps.py).
+  2. Self-service flow (patient registers/logs in directly from the
+     panel, no QR): qr_access_point_id stays NULL, hospital_id and
+     department_id are set directly on the profile.
+
 Design notes:
 - QRAccessPoint.access_token is the only secret embedded in a printed
   QR code. It must be long, random and unguessable (never sequential).
 - PatientAccessProfile itself has NO personally identifiable
   information - it exists purely so per-device progress/favorites/
   quiz-attempts can be tracked without real patient authentication.
-  Real identity (name, national ID, phone) lives in the separate,
-  optional PatientRegistration table (one-to-one), kept apart so the
-  device-tracking mechanism stays PII-free at its core even though
-  most hospitals will now also collect a PatientRegistration.
+  Real identity (name, national ID, phone, password) lives in the
+  separate, optional PatientRegistration table (one-to-one).
 - StandardDepartmentType is a fixed lookup (seeded once via
   scripts/seed_department_types.py) representing the standard Iranian
   hospital department taxonomy. Department.department_type_id links a
@@ -140,22 +147,27 @@ class QRAccessPoint(Base):
 
 class PatientAccessProfile(Base):
     """
-    Anonymous, device-bound profile. Core fields carry NO PII by
-    design. Created on first QR scan and persisted via a long-lived
-    cookie so progress/favorites/quiz-attempts can be attributed to
-    "this device" without real auth. May optionally have a linked
-    PatientRegistration row (one-to-one) holding real identity/contact
-    info once the hospital collects it.
+    Device-bound profile. Core fields carry NO PII by design. Created
+    either via QR scan (qr_access_point_id set) or via self-service
+    registration from the patient panel (hospital_id/department_id
+    set directly, qr_access_point_id NULL). May optionally have a
+    linked PatientRegistration row (one-to-one) holding real identity/
+    contact info + login password once collected.
     """
     __tablename__ = "patient_access_profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    qr_access_point_id = Column(UUID(as_uuid=True), ForeignKey("qr_access_points.id"), nullable=False, index=True)
+    qr_access_point_id = Column(UUID(as_uuid=True), ForeignKey("qr_access_points.id"), nullable=True, index=True)
+    hospital_id = Column(UUID(as_uuid=True), ForeignKey("hospitals.id"), nullable=True, index=True)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True, index=True)
+
     device_fingerprint_hash = Column(String(128), nullable=True)  # optional, stats-only, never identifying
 
     first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     qr_access_point = relationship("QRAccessPoint")
+    hospital = relationship("Hospital")
+    department = relationship("Department")
     registration = relationship("PatientRegistration", back_populates="patient_access_profile", uselist=False)
