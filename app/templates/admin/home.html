@@ -4,9 +4,9 @@
 <div class="cl-container cl-admin-container">
     {% include "admin/_nav.html" %}
 
-    <div class="cl-card cl-admin-card" style="text-align:center; margin-top:24px;">
+    <div class="cl-admin-hero">
         <h1>پنل مدیریت CuraLink</h1>
-        <p class="cl-sub">
+        <p>
             {% if is_full_admin %}
             از اینجا محتوای آموزشی، بیمارستان‌ها و گزارش بیماران را مدیریت کنید.
             {% else %}
@@ -18,39 +18,39 @@
     <div class="cl-admin-home-grid">
         {% if is_full_admin %}
         <a href="/admin/panel" class="cl-admin-home-card">
-            <span class="cl-admin-home-icon">📚</span>
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">auto_stories</span></span>
             <h3>سازنده‌ی محتوای آموزشی</h3>
             <p>ساخت درس، مدیا و آزمون؛ اتصال بخش‌ها به بیمارستان‌ها.</p>
         </a>
         {% endif %}
 
         <a href="/admin/patients" class="cl-admin-home-card">
-            <span class="cl-admin-home-icon">🧑‍⚕️</span>
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">groups</span></span>
             <h3>گزارش بیماران</h3>
             <p>لیست بیماران ثبت‌نام‌شده، اطلاعات تماس و مرحله‌ی فعلی آن‌ها.</p>
         </a>
 
         <a href="/admin/dashboard" class="cl-admin-home-card">
-            <span class="cl-admin-home-icon">📊</span>
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">query_stats</span></span>
             <h3>رصد آموزش بیماران</h3>
             <p>نرخ تکمیل درس‌ها، موفقیت آزمون‌ها و پربازدیدترین درس‌ها.</p>
         </a>
 
         <a href="/admin/referrals" class="cl-admin-home-card">
-            <span class="cl-admin-home-icon">📥</span>
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">move_to_inbox</span></span>
             <h3>ارجاعات بیمارستان</h3>
             <p>ثبت و بررسی ارجاعات پس از ترخیص، مدیریت کلید API سیستم بیمارستان.</p>
         </a>
 
         <a href="/admin/qr-codes" class="cl-admin-home-card">
-            <span class="cl-admin-home-icon">🔗</span>
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">qr_code_2</span></span>
             <h3>کدهای QR</h3>
             <p>ساخت و باطل‌کردن کد QR ورودی هر بخش.</p>
         </a>
 
         {% if is_full_admin %}
         <a href="/admin/panel#hospitals" class="cl-admin-home-card">
-            <span class="cl-admin-home-icon">🏥</span>
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">local_hospital</span></span>
             <h3>بیمارستان‌ها و بخش‌ها</h3>
             <p>ساخت بیمارستان جدید، افزودن بخش و اتصال QR ورودی.</p>
         </a>

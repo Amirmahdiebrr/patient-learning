@@ -1,25 +1,27 @@
 <div class="cl-admin-nav">
     <a href="/admin/home" class="cl-admin-nav-link {% if active_page == 'home' %}cl-admin-nav-link-active{% endif %}">
-        🏠 خانه
+        <span class="material-symbols-outlined cl-icon-sm">home</span> خانه
     </a>
     <a href="/admin/dashboard" class="cl-admin-nav-link {% if active_page == 'dashboard' %}cl-admin-nav-link-active{% endif %}">
-        📊 داشبورد
+        <span class="material-symbols-outlined cl-icon-sm">monitoring</span> داشبورد
     </a>
     {% if is_full_admin %}
     <a href="/admin/panel" class="cl-admin-nav-link {% if active_page == 'content' %}cl-admin-nav-link-active{% endif %}">
-        📚 سازنده‌ی محتوا
+        <span class="material-symbols-outlined cl-icon-sm">auto_stories</span> سازنده‌ی محتوا
     </a>
     {% endif %}
     <a href="/admin/patients" class="cl-admin-nav-link {% if active_page == 'patients' %}cl-admin-nav-link-active{% endif %}">
-        🧑‍⚕️ گزارش بیماران
+        <span class="material-symbols-outlined cl-icon-sm">groups</span> گزارش بیماران
     </a>
     <a href="/admin/referrals" class="cl-admin-nav-link {% if active_page == 'referrals' %}cl-admin-nav-link-active{% endif %}">
-        📥 ارجاعات بیمارستان
+        <span class="material-symbols-outlined cl-icon-sm">move_to_inbox</span> ارجاعات بیمارستان
     </a>
     <a href="/admin/qr-codes" class="cl-admin-nav-link {% if active_page == 'qr_codes' %}cl-admin-nav-link-active{% endif %}">
-        🔗 کدهای QR
+        <span class="material-symbols-outlined cl-icon-sm">qr_code_2</span> کدهای QR
     </a>
-    <button id="admin-logout-btn" class="cl-admin-nav-link cl-admin-nav-logout">خروج</button>
+    <button id="admin-logout-btn" class="cl-admin-nav-link cl-admin-nav-logout">
+        <span class="material-symbols-outlined cl-icon-sm">logout</span> خروج
+    </button>
 </div>
 
 <script>
