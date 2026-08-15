@@ -1501,3 +1501,10 @@ input, textarea, select, button{ font-family:inherit; }
 .cl-profile-stat .material-symbols-outlined{ color:var(--color-primary); }
 .cl-profile-stat small{ display:block; font-size:11.5px; color:var(--text-secondary); }
 .cl-profile-stat strong{ font-size:13.5px; color:var(--navy); }
+
+.cl-admin-badge-toggle{
+    cursor:pointer;
+    border:none;
+    font-family:inherit;
+}
+.cl-admin-badge-toggle:hover{ opacity:.85; }

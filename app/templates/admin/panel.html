@@ -52,6 +52,7 @@
 
     <div class="cl-card cl-admin-card" id="lesson-card" style="display:none;">
         <h2 class="cl-admin-h2">درس‌های این بخش (متن اصلی آموزش اینجاست)</h2>
+        <p class="cl-sub" style="margin-bottom:14px;">روی نشان «پیش‌نویس / منتشرشده» کنار هر درس کلیک کن تا وضعیت انتشار عوض شود.</p>
         <div id="lesson-list"></div>
 
         <div class="cl-admin-inline-form-col">
@@ -437,6 +438,10 @@
         });
     }
 
+    // ==========================
+    // Lessons
+    // ==========================
+
     async function loadLessons(sectionId) {
         const lessons = await api(`/admin/lessons?section_id=${sectionId}`);
         lessonList.innerHTML = lessons.length === 0
@@ -447,8 +452,8 @@
 
     function renderLessonRow(lesson) {
         const statusBadge = lesson.is_published
-            ? '<span class="cl-admin-badge cl-admin-badge-live">منتشرشده</span>'
-            : '<span class="cl-admin-badge cl-admin-badge-draft">پیش‌نویس</span>';
+            ? `<button type="button" class="cl-admin-badge cl-admin-badge-live cl-admin-badge-toggle" data-action="toggle-publish" data-lesson-id="${lesson.id}" data-published="true" title="کلیک کن تا به پیش‌نویس برگردد">منتشرشده</button>`
+            : `<button type="button" class="cl-admin-badge cl-admin-badge-draft cl-admin-badge-toggle" data-action="toggle-publish" data-lesson-id="${lesson.id}" data-published="false" title="کلیک کن تا منتشر شود">پیش‌نویس</button>`;
         return `
         <div class="cl-admin-lesson-row" data-lesson-id="${lesson.id}">
             <div class="cl-admin-lesson-head">
@@ -461,13 +466,26 @@
     }
 
     function wireLessonRow(lessonId) {
-        const btn = document.querySelector(`.cl-admin-expand-btn[data-lesson-id="${lessonId}"]`);
-        btn.addEventListener("click", async function () {
+        const expandBtn = document.querySelector(`.cl-admin-expand-btn[data-lesson-id="${lessonId}"]`);
+        expandBtn.addEventListener("click", async function () {
             const body = document.getElementById(`lesson-body-${lessonId}`);
             const isOpen = body.style.display !== "none";
             if (isOpen) { body.style.display = "none"; return; }
             body.style.display = "block";
             await renderLessonDetail(lessonId, body);
+        });
+
+        const toggleBtn = document.querySelector(`.cl-admin-badge-toggle[data-lesson-id="${lessonId}"]`);
+        toggleBtn.addEventListener("click", async function () {
+            const isPublished = toggleBtn.dataset.published === "true";
+            const endpoint = isPublished ? "unpublish" : "publish";
+            try {
+                await api(`/admin/lessons/${lessonId}/${endpoint}`, { method: "POST" });
+                AdminToast.success(isPublished ? "درس به پیش‌نویس برگشت." : "درس منتشر شد.");
+                await loadLessons(state.sectionId);
+            } catch (err) {
+                AdminToast.error(err.message);
+            }
         });
     }
 
