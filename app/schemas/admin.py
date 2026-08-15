@@ -32,8 +32,8 @@ class HospitalResponse(BaseModel):
 
 class DepartmentCreateRequest(BaseModel):
     hospital_id: uuid.UUID
-    name: str = Field(min_length=2, max_length=255)
-    department_type_id: uuid.UUID | None = None
+    department_type_id: uuid.UUID
+    name: str | None = Field(default=None, max_length=255)
 
 
 class DepartmentUpdateRequest(BaseModel):

@@ -287,18 +287,19 @@ async def create_department(
     if not hospital:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بیمارستان پیدا نشد.")
 
-    if payload.department_type_id:
-        dept_type = db.query(StandardDepartmentType).filter(
-            StandardDepartmentType.id == payload.department_type_id
-        ).first()
-        if not dept_type:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "نوع بخش استاندارد پیدا نشد.")
+    dept_type = db.query(StandardDepartmentType).filter(
+        StandardDepartmentType.id == payload.department_type_id
+    ).first()
+    if not dept_type:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "نوع بخش استاندارد پیدا نشد.")
+
+    name = (payload.name or "").strip() or dept_type.name
 
     department = Department(
         hospital_id=hospital.id,
-        name=payload.name,
-        slug=slugify(payload.name),
-        department_type_id=payload.department_type_id,
+        name=name,
+        slug=slugify(name),
+        department_type_id=dept_type.id,
     )
     db.add(department)
     db.commit()

@@ -22,7 +22,7 @@
         <p class="cl-sub">
             محتوا بر اساس «نوع بخش» ساخته می‌شود، نه بر اساس یک بیمارستان خاص.
             هر بیمارستانی که بعداً بخشی از همین نوع بسازد، خودکار همین محتوا را می‌گیرد.
-            «عنوان بخش» فقط یک برچسب کوتاه است؛ متن اصلی آموزش را در «درس» زیر آن بنویسید.
+            «برچسب» فقط یک عنوان کوتاه برای بخش است؛ متن اصلی آموزش را در «درس» زیر آن بنویسید و سوالات آزمون این برچسب را هم از همین‌جا بسازید.
         </p>
 
         <div class="cl-admin-row">
@@ -40,12 +40,13 @@
     </div>
 
     <div class="cl-card cl-admin-card" id="section-card" style="display:none;">
-        <h2 class="cl-admin-h2">بخش‌های آموزشی این مرحله + نوع بخش</h2>
+        <h2 class="cl-admin-h2">برچسب‌های آموزشی این مرحله + نوع بخش</h2>
+        <p class="cl-sub" style="margin-bottom:14px;">روی ❓ هر برچسب بزنید تا سوالات آزمون مخصوص همان برچسب را بسازید یا ببینید.</p>
         <div id="section-list" class="cl-admin-section-list"></div>
 
         <div class="cl-admin-inline-form">
             <input type="text" id="new-section-title" placeholder="برچسب کوتاه بخش (مثلاً: خوش‌آمدگویی عمومی)">
-            <button id="create-section-btn" class="cl-btn cl-btn-sm">+ ساخت بخش جدید</button>
+            <button id="create-section-btn" class="cl-btn cl-btn-sm">+ ساخت برچسب جدید</button>
         </div>
     </div>
 
@@ -64,26 +65,12 @@
     </div>
 
     <div class="cl-card cl-admin-card" id="stage-quiz-card" style="display:none;">
-        <h2 class="cl-admin-h2">آزمون کل مرحله (روی صفحه‌ی خانه‌ی بیمار نمایش داده می‌شود)</h2>
+        <h2 class="cl-admin-h2">آزمون عمومی کل مرحله (اختیاری)</h2>
         <p class="cl-sub">
-            این سوال مخصوص یک درس نیست؛ برای همان مرحله و نوع بخشی که بالا انتخاب کردی به همه‌ی بیماران نشان داده می‌شود.
-            تعداد گزینه‌ها آزاد است (۲ تا ۱۰) و می‌توانی برای سوال و هر گزینه عکس آپلود کنی.
+            این بخش فقط برای سوالاتی است که مخصوص یک برچسب خاص نیستند و می‌خواهید برای کل مرحله نمایش داده شوند.
+            در حالت عادی سوال را از داخل همان برچسب (با دکمه‌ی ❓) بسازید.
         </p>
-
-        <div id="stage-quiz-list" class="cl-admin-mini-list" style="margin-bottom:20px;"></div>
-
-        <div class="cl-admin-inline-form-col">
-            <input type="text" id="stage-quiz-question-text" placeholder="متن سوال">
-            <div class="cl-admin-inline-form">
-                <input type="file" id="stage-quiz-question-image" accept="image/*">
-                <span style="font-size:12px; color:#8CA0B3;">عکس سوال (اختیاری)</span>
-            </div>
-
-            <div id="stage-quiz-options-list"></div>
-
-            <button type="button" id="stage-quiz-add-option-btn" class="cl-btn cl-btn-sm cl-btn-outline">+ افزودن گزینه</button>
-            <button type="button" id="stage-quiz-submit-btn" class="cl-btn cl-btn-sm">ثبت سوال مرحله</button>
-        </div>
+        <div id="stage-quiz-container"></div>
     </div>
 
     <div class="cl-card cl-admin-card" id="hospitals">
@@ -114,8 +101,8 @@
         </div>
 
         <div class="cl-admin-inline-form" style="margin-top:18px;">
-            <input type="text" id="new-department-name" placeholder="نام بخش (مثلاً: ارتوپدی طبقه ۲)">
-            <select id="new-department-type"><option value="">— نوع استاندارد بخش —</option></select>
+            <select id="new-department-type"><option value="">— نوع بخش را انتخاب کنید —</option></select>
+            <input type="text" id="new-department-name" placeholder="نام سفارشی بخش (اختیاری)">
             <button id="create-department-btn" class="cl-btn cl-btn-sm">+ افزودن بخش به این بیمارستان</button>
         </div>
 
@@ -169,7 +156,6 @@
 
     let allDepartmentTypes = [];
     let allJourneyStages = [];
-    let stageQuizOptionCount = 0;
 
     const state = {
         contentDepartmentTypeId: "general", stageId: null, sectionId: null, hospitalId: null, departmentId: null,
@@ -182,8 +168,6 @@
     const lessonCard = document.getElementById("lesson-card");
     const lessonList = document.getElementById("lesson-list");
     const stageQuizCard = document.getElementById("stage-quiz-card");
-    const stageQuizList = document.getElementById("stage-quiz-list");
-    const stageQuizOptionsList = document.getElementById("stage-quiz-options-list");
     const hospitalSelect = document.getElementById("hospital-select");
     const departmentSelect = document.getElementById("department-select");
     const newDepartmentTypeSelect = document.getElementById("new-department-type");
@@ -212,7 +196,7 @@
     async function loadDepartmentTypes() {
         allDepartmentTypes = await api("/admin/department-types");
         renderDepartmentTypeOptions(contentDeptTypeSelect, "general", "— عمومی (همه‌ی بخش‌ها) —", allDepartmentTypes);
-        renderDepartmentTypeOptions(newDepartmentTypeSelect, "", "— نوع استاندارد بخش —", allDepartmentTypes);
+        renderDepartmentTypeOptions(newDepartmentTypeSelect, "", "— نوع بخش را انتخاب کنید —", allDepartmentTypes);
     }
 
     async function loadStages() {
@@ -221,28 +205,185 @@
             allJourneyStages.map(function (s) { return `<option value="${s.id}">${escapeHtml(s.name)}</option>`; }).join("");
     }
 
+    // ==========================
+    // Quiz manager (reusable for both the per-section panel and the global stage-level card)
+    // ==========================
+
+    const quizManagers = {};
+
+    function quizPanelHTML(prefix) {
+        return `
+            <div class="cl-admin-mini-list" id="${prefix}-list" style="margin:14px 0;"></div>
+            <div class="cl-admin-inline-form-col">
+                <input type="text" id="${prefix}-question-text" placeholder="متن سوال">
+                <div class="cl-admin-inline-form">
+                    <input type="file" id="${prefix}-question-image" accept="image/*">
+                    <span style="font-size:12px; color:#8CA0B3;">عکس سوال (اختیاری)</span>
+                </div>
+                <div id="${prefix}-options-list"></div>
+                <div class="cl-admin-inline-form">
+                    <button type="button" class="cl-btn cl-btn-sm cl-btn-outline" data-quiz-add-option="${prefix}">+ افزودن گزینه</button>
+                    <button type="button" class="cl-btn cl-btn-sm" data-quiz-submit="${prefix}">ثبت سوال</button>
+                </div>
+            </div>`;
+    }
+
+    function addQuizOptionRow(prefix) {
+        const mgr = quizManagers[prefix];
+        const idx = mgr.optionCount++;
+        const container = document.getElementById(`${prefix}-options-list`);
+        const row = document.createElement("div");
+        row.className = "cl-admin-quiz-option-row";
+        row.innerHTML = `
+            <input type="radio" name="${prefix}-correct" value="${idx}" ${idx === 0 ? "checked" : ""}>
+            <input type="text" id="${prefix}-opt-text-${idx}" placeholder="متن گزینه">
+            <input type="file" id="${prefix}-opt-image-${idx}" accept="image/*">
+        `;
+        container.appendChild(row);
+    }
+
+    function resetQuizForm(prefix) {
+        document.getElementById(`${prefix}-question-text`).value = "";
+        const imgInput = document.getElementById(`${prefix}-question-image`);
+        if (imgInput) imgInput.value = "";
+        document.getElementById(`${prefix}-options-list`).innerHTML = "";
+        quizManagers[prefix].optionCount = 0;
+        addQuizOptionRow(prefix);
+        addQuizOptionRow(prefix);
+    }
+
+    async function loadQuizList(prefix) {
+        const mgr = quizManagers[prefix];
+        const url = `/admin/stage-quiz-questions?journey_stage_id=${mgr.journeyStageId}&department_type_id=${mgr.departmentTypeId || "general"}`;
+        const questions = await api(url);
+        const listEl = document.getElementById(`${prefix}-list`);
+        listEl.innerHTML = questions.length === 0
+            ? '<p class="cl-admin-empty">سوالی ثبت نشده.</p>'
+            : questions.map(function (q) {
+                return `<div class="cl-admin-mini-item">${escapeHtml(q.question_text)} (${q.options.length} گزینه)
+                    <button class="cl-admin-del-btn" data-quiz-delete="${q.id}">حذف</button></div>`;
+            }).join("");
+
+        listEl.querySelectorAll("[data-quiz-delete]").forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                try {
+                    await api(`/admin/quiz-questions/${btn.dataset.quizDelete}`, { method: "DELETE" });
+                    AdminToast.success("سوال حذف شد.");
+                    await loadQuizList(prefix);
+                } catch (err) {
+                    AdminToast.error(err.message);
+                }
+            });
+        });
+    }
+
+    async function uploadIfPresent(inputEl) {
+        if (!inputEl || !inputEl.files[0]) return null;
+        const formData = new FormData();
+        formData.append("media_type", "image");
+        formData.append("file", inputEl.files[0]);
+        const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
+        return result.url;
+    }
+
+    async function submitQuiz(prefix) {
+        const mgr = quizManagers[prefix];
+        const questionText = document.getElementById(`${prefix}-question-text`).value.trim();
+        if (!questionText) { AdminToast.error("متن سوال را وارد کنید."); return; }
+
+        const optionsList = document.getElementById(`${prefix}-options-list`);
+        const rows = optionsList.querySelectorAll(".cl-admin-quiz-option-row");
+        const correctRadio = optionsList.querySelector(`input[name="${prefix}-correct"]:checked`);
+        if (!correctRadio || rows.length < 2) { AdminToast.error("حداقل ۲ گزینه و یک گزینه‌ی درست لازم است."); return; }
+
+        try {
+            const questionImageUrl = await uploadIfPresent(document.getElementById(`${prefix}-question-image`));
+
+            const options = [];
+            for (let i = 0; i < rows.length; i++) {
+                const textInput = rows[i].querySelector('input[type="text"]');
+                const fileInput = rows[i].querySelector('input[type="file"]');
+                const radioInput = rows[i].querySelector('input[type="radio"]');
+                const text = textInput.value.trim();
+                if (!text) continue;
+                const imageUrl = await uploadIfPresent(fileInput);
+                options.push({
+                    option_text: text,
+                    option_image_url: imageUrl,
+                    is_correct: radioInput.value === correctRadio.value,
+                    display_order: i,
+                });
+            }
+
+            if (options.length < 2) { AdminToast.error("حداقل ۲ گزینه‌ی متنی لازم است."); return; }
+
+            await api("/admin/quiz-questions", {
+                method: "POST",
+                body: JSON.stringify({
+                    journey_stage_id: mgr.journeyStageId,
+                    department_type_id: mgr.departmentTypeId || null,
+                    question_text: questionText,
+                    question_image_url: questionImageUrl,
+                    options: options,
+                }),
+            });
+
+            AdminToast.success("سوال اضافه شد.");
+            resetQuizForm(prefix);
+            await loadQuizList(prefix);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    }
+
+    function initQuizManager(prefix, journeyStageId, departmentTypeId, containerEl) {
+        quizManagers[prefix] = { journeyStageId: journeyStageId, departmentTypeId: departmentTypeId, optionCount: 0 };
+        containerEl.innerHTML = quizPanelHTML(prefix);
+
+        containerEl.querySelector(`[data-quiz-add-option="${prefix}"]`).addEventListener("click", function () {
+            addQuizOptionRow(prefix);
+        });
+        containerEl.querySelector(`[data-quiz-submit="${prefix}"]`).addEventListener("click", function () {
+            submitQuiz(prefix);
+        });
+
+        resetQuizForm(prefix);
+        loadQuizList(prefix);
+    }
+
+    // ==========================
+    // Sections ("برچسب‌ها")
+    // ==========================
+
     async function loadSections() {
+        Object.keys(quizManagers).forEach(function (k) { if (k.indexOf("secquiz-") === 0) delete quizManagers[k]; });
+
         const url = `/admin/education-sections?journey_stage_id=${state.stageId}&department_type_id=${state.contentDepartmentTypeId}`;
         const sections = await api(url);
         sectionList.innerHTML = sections.length === 0
-            ? '<p style="color:#8CA0B3; font-size:13.5px;">هنوز بخشی برای این ترکیب ساخته نشده.</p>'
+            ? '<p style="color:#8CA0B3; font-size:13.5px;">هنوز برچسبی برای این ترکیب ساخته نشده.</p>'
             : sections.map(renderSectionRow).join("");
         sections.forEach(function (s) { wireSectionRow(s); });
     }
 
     function renderSectionRow(s) {
         return `
-        <div class="cl-admin-section-row" data-section-id="${s.id}">
-            <button class="cl-admin-pick-btn" data-section-id="${s.id}">${escapeHtml(s.title)} <small>(${s.lesson_count} درس)</small></button>
-            <button class="cl-admin-icon-btn" data-action="edit-section" data-section-id="${s.id}" title="ویرایش">✎</button>
-            <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-action="delete-section" data-section-id="${s.id}" title="حذف">🗑</button>
+        <div class="cl-admin-section-block" data-section-block-id="${s.id}">
+            <div class="cl-admin-section-row" data-section-id="${s.id}">
+                <button class="cl-admin-pick-btn" data-section-id="${s.id}">${escapeHtml(s.title)} <small>(${s.lesson_count} درس)</small></button>
+                <button class="cl-admin-icon-btn" data-action="edit-section" data-section-id="${s.id}" title="ویرایش">✎</button>
+                <button class="cl-admin-icon-btn" data-action="toggle-section-quiz" data-section-id="${s.id}" title="سوالات این برچسب">❓</button>
+                <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-action="delete-section" data-section-id="${s.id}" title="حذف">🗑</button>
+            </div>
+            <div class="cl-admin-section-quiz-panel" id="section-quiz-${s.id}"
+                 style="display:none; margin-top:10px; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--sky);"></div>
         </div>`;
     }
 
     function wireSectionRow(section) {
-        const row = sectionList.querySelector(`.cl-admin-section-row[data-section-id="${section.id}"]`);
+        const block = sectionList.querySelector(`.cl-admin-section-block[data-section-block-id="${section.id}"]`);
 
-        row.querySelector('.cl-admin-pick-btn').addEventListener("click", function (e) {
+        block.querySelector('.cl-admin-pick-btn').addEventListener("click", function (e) {
             sectionList.querySelectorAll(".cl-admin-pick-btn").forEach(function (b) { b.classList.remove("cl-admin-pick-btn-active"); });
             e.currentTarget.classList.add("cl-admin-pick-btn-active");
             state.sectionId = section.id;
@@ -250,8 +391,8 @@
             loadLessons(state.sectionId);
         });
 
-        row.querySelector('[data-action="edit-section"]').addEventListener("click", async function () {
-            const result = await AdminModal.form("ویرایش بخش", [
+        block.querySelector('[data-action="edit-section"]').addEventListener("click", async function () {
+            const result = await AdminModal.form("ویرایش برچسب", [
                 { name: "title", label: "برچسب بخش", value: section.title },
             ]);
             if (!result || !result.title) return;
@@ -265,19 +406,30 @@
                         title: result.title,
                     }),
                 });
-                AdminToast.success("بخش ویرایش شد.");
+                AdminToast.success("برچسب ویرایش شد.");
                 await loadSections();
             } catch (err) {
                 AdminToast.error(err.message);
             }
         });
 
-        row.querySelector('[data-action="delete-section"]').addEventListener("click", async function () {
-            const confirmed = await AdminModal.confirm("این بخش حذف شود؟");
+        block.querySelector('[data-action="toggle-section-quiz"]').addEventListener("click", function () {
+            const panel = document.getElementById(`section-quiz-${section.id}`);
+            const isOpen = panel.style.display !== "none";
+            if (isOpen) { panel.style.display = "none"; return; }
+            panel.style.display = "block";
+            const prefix = `secquiz-${section.id}`;
+            if (!quizManagers[prefix]) {
+                initQuizManager(prefix, section.journey_stage_id, section.department_type_id, panel);
+            }
+        });
+
+        block.querySelector('[data-action="delete-section"]').addEventListener("click", async function () {
+            const confirmed = await AdminModal.confirm("این برچسب حذف شود؟");
             if (!confirmed) return;
             try {
                 await api(`/admin/education-sections/${section.id}`, { method: "DELETE" });
-                AdminToast.success("بخش حذف شد.");
+                AdminToast.success("برچسب حذف شد.");
                 await loadSections();
             } catch (err) {
                 AdminToast.error(err.message);
@@ -555,11 +707,18 @@
         }
     }
 
-    // ---------- Existing handlers below (sections, hospitals, departments) ----------
+    // ---------- Sections + stage-level quiz handlers ----------
 
     contentDeptTypeSelect.addEventListener("change", function () {
         state.contentDepartmentTypeId = contentDeptTypeSelect.value;
-        if (state.stageId) { loadSections(); loadStageQuiz(); }
+        if (state.stageId) {
+            loadSections();
+            initQuizManager(
+                "stage-quiz-global", state.stageId,
+                state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
+                document.getElementById("stage-quiz-container"),
+            );
+        }
     });
 
     stageSelect.addEventListener("change", async function () {
@@ -569,8 +728,12 @@
         if (state.stageId) {
             sectionCard.style.display = "block";
             await loadSections();
-            resetStageQuizForm();
-            await loadStageQuiz();
+            stageQuizCard.style.display = "block";
+            initQuizManager(
+                "stage-quiz-global", state.stageId,
+                state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
+                document.getElementById("stage-quiz-container"),
+            );
         } else {
             sectionCard.style.display = "none";
             stageQuizCard.style.display = "none";
@@ -591,7 +754,7 @@
                 }),
             });
             document.getElementById("new-section-title").value = "";
-            AdminToast.success("بخش ساخته شد.");
+            AdminToast.success("برچسب ساخته شد.");
             await loadSections();
         } catch (err) {
             AdminToast.error(err.message);
@@ -602,7 +765,7 @@
         const title = document.getElementById("new-lesson-title").value.trim();
         const body = document.getElementById("new-lesson-body").value.trim();
         if (!title || !body) { AdminToast.error("عنوان و متن درس را وارد کنید."); return; }
-        if (!state.sectionId) { AdminToast.error("اول یک بخش را انتخاب کنید."); return; }
+        if (!state.sectionId) { AdminToast.error("اول یک برچسب را انتخاب کنید."); return; }
         try {
             await api("/admin/lessons", {
                 method: "POST",
@@ -616,6 +779,8 @@
             AdminToast.error(err.message);
         }
     });
+
+    // ---------- Hospitals / departments ----------
 
     async function loadHospitals(selectAfterId) {
         const search = hospitalSearchInput.value.trim();
@@ -721,15 +886,15 @@
     });
 
     document.getElementById("create-department-btn").addEventListener("click", async function () {
-        const name = document.getElementById("new-department-name").value.trim();
         const departmentTypeId = newDepartmentTypeSelect.value || null;
-        if (!name) { AdminToast.error("نام بخش را وارد کنید."); return; }
+        const name = document.getElementById("new-department-name").value.trim() || null;
         if (!state.hospitalId) { AdminToast.error("اول یک بیمارستان را انتخاب کنید."); return; }
+        if (!departmentTypeId) { AdminToast.error("نوع بخش را انتخاب کنید."); return; }
 
         try {
             await api("/admin/departments", {
                 method: "POST",
-                body: JSON.stringify({ hospital_id: state.hospitalId, name: name, department_type_id: departmentTypeId }),
+                body: JSON.stringify({ hospital_id: state.hospitalId, department_type_id: departmentTypeId, name: name }),
             });
             document.getElementById("new-department-name").value = "";
             newDepartmentTypeSelect.value = "";

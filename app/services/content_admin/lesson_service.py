@@ -5,6 +5,14 @@ Lesson CRUD, including hospital-level override lessons. HTML
 sanitization of body_richtext happens here (not in the route) since
 "never persist raw HTML" is a property of how a lesson is stored, not
 of the HTTP layer.
+
+delete_lesson() explicitly clears every FK that points at a lesson
+but is NOT covered by an ORM cascade=delete-orphan relationship
+(favorite_records, progress_records, quiz_attempts via the lesson's
+quiz_questions) before deleting the lesson itself - otherwise
+Postgres raises a ForeignKeyViolation. feedback_records.lesson_id is
+nullable, so feedback is detached (set to NULL) instead of deleted,
+to keep the feedback/comment itself.
 """
 
 import uuid
@@ -13,7 +21,10 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.sanitize import sanitize_html
-from app.infrastructure.db.models import Lesson, EducationSection, Hospital, LessonOverrideLevel
+from app.infrastructure.db.models import (
+    Lesson, EducationSection, Hospital, LessonOverrideLevel,
+    FavoriteRecord, ProgressRecord, QuizAttempt, QuizQuestion, FeedbackRecord,
+)
 from app.services.content_admin.errors import ContentNotFoundError, ContentConflictError, ContentValidationError
 
 
@@ -94,6 +105,19 @@ def delete_lesson(db: Session, lesson_id: uuid.UUID) -> tuple[uuid.UUID, dict]:
     lesson = get_lesson_or_raise(db, lesson_id)
     before = lesson_snapshot(lesson)
     lesson_id_copy = lesson.id
+
+    question_ids = [
+        row[0] for row in
+        db.query(QuizQuestion.id).filter(QuizQuestion.lesson_id == lesson_id).all()
+    ]
+    if question_ids:
+        db.query(QuizAttempt).filter(QuizAttempt.question_id.in_(question_ids)).delete(synchronize_session=False)
+
+    db.query(FavoriteRecord).filter(FavoriteRecord.lesson_id == lesson_id).delete(synchronize_session=False)
+    db.query(ProgressRecord).filter(ProgressRecord.lesson_id == lesson_id).delete(synchronize_session=False)
+    db.query(FeedbackRecord).filter(FeedbackRecord.lesson_id == lesson_id).update(
+        {FeedbackRecord.lesson_id: None}, synchronize_session=False
+    )
 
     db.delete(lesson)
     db.commit()
