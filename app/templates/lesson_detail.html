@@ -51,10 +51,21 @@
     </div>
     {% endif %}
 
-    <button id="complete-btn" class="cl-btn" style="max-width:640px; margin:0 auto 40px; display:block;"
+    <button id="complete-btn" class="cl-btn" style="max-width:640px; margin:0 auto 24px; display:block;"
             data-lesson-id="{{ lesson.id }}" {% if progress.status.value == "completed" %}disabled{% endif %}>
         {% if progress.status.value == "completed" %}✓ تکمیل‌شده{% else %}پایان درس، علامت‌گذاری به‌عنوان تکمیل‌شده{% endif %}
     </button>
+
+    <div class="cl-chat-box" id="assistant-box">
+        <div style="padding:18px 24px; border-bottom:1px solid var(--line); font-weight:700; color:var(--navy);">
+            💬 سوال درباره‌ی همین درس؟ از دستیار هوشمند بپرسید
+        </div>
+        <div class="cl-chat-messages" id="assistant-messages"></div>
+        <form class="cl-chat-input-row" id="assistant-form">
+            <input type="text" id="assistant-input" class="cl-chat-input" placeholder="مثلاً: منظور از این قسمت چیست؟" autocomplete="off">
+            <button type="submit" class="cl-chat-send">ارسال</button>
+        </form>
+    </div>
 
 </div>
 {% endblock %}
@@ -62,6 +73,8 @@
 {% block scripts %}
 <script>
 (function () {
+    const LESSON_ID = "{{ lesson.id }}";
+
     const favBtn = document.getElementById("fav-btn");
     let isFavorite = {{ 'true' if is_favorite else 'false' }};
 
@@ -123,6 +136,47 @@
                 resultEl.className = "cl-quiz-result " + (data.is_correct ? "cl-quiz-result-correct" : "cl-quiz-result-wrong");
             });
         });
+    });
+
+    const messagesEl = document.getElementById("assistant-messages");
+    const form = document.getElementById("assistant-form");
+    const input = document.getElementById("assistant-input");
+    let conversation = [];
+
+    function addMessage(role, text) {
+        const bubble = document.createElement("div");
+        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
+        bubble.textContent = text;
+        messagesEl.appendChild(bubble);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+
+        addMessage("user", question);
+        conversation.push({ role: "user", content: question });
+        input.value = "";
+
+        try {
+            const res = await fetch("/assistant/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: question, history: conversation, lesson_id: LESSON_ID }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                addMessage("ai", data.error || "خطایی رخ داد.");
+            } else {
+                addMessage("ai", data.answer);
+                conversation.push({ role: "assistant", content: data.answer });
+            }
+        } catch (err) {
+            addMessage("ai", "ارتباط با سرور برقرار نشد.");
+        }
     });
 })();
 </script>

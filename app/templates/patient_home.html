@@ -4,7 +4,12 @@
 <div class="cl-container">
 
     <div class="cl-card">
-        <h1>مسیر آموزشی شما</h1>
+        <div class="cl-lesson-header">
+            <h1>مسیر آموزشی شما</h1>
+            <a href="/profile" class="cl-fav-btn" style="text-decoration:none; display:flex; align-items:center; gap:6px;">
+                <span class="material-symbols-outlined cl-icon-sm">account_circle</span> پروفایل من
+            </a>
+        </div>
         <p class="cl-sub">{{ hospital.name }} — بخش {{ department.name }}</p>
 
         {% if lessons|length == 0 %}

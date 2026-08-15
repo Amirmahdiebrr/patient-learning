@@ -1,16 +1,6 @@
 # app/api/v1/admin_auth.py
 """
 app/api/v1/admin_auth.py
-
-Admin login/logout, plus hospital self-service signup. On success,
-the JWT is set as an httpOnly cookie (never returned in the JSON body
-or stored in localStorage/JS-reachable storage) plus a separate,
-JS-unreadable CSRF cookie the admin pages embed into a <meta> tag -
-see admin_panel.py.
-
-register-hospital lets a hospital create its own Hospital row + an
-AdminUser scoped to it as HOSPITAL_ADMIN, without a super_admin having
-to onboard them manually via /admin/admin-users.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -44,6 +34,7 @@ class AdminLoginRequest(BaseModel):
 class AdminLoginResponse(BaseModel):
     full_name: str
     email: str
+    hospital_pending_approval: bool = False
 
 
 def _set_admin_session_cookies(response: Response, admin: AdminUser) -> None:
@@ -96,7 +87,20 @@ async def admin_login(
 
     _set_admin_session_cookies(response, admin)
 
-    return AdminLoginResponse(full_name=admin.full_name, email=admin.email)
+    pending = _has_pending_hospital(db, admin)
+
+    return AdminLoginResponse(full_name=admin.full_name, email=admin.email, hospital_pending_approval=pending)
+
+
+def _has_pending_hospital(db: Session, admin: AdminUser) -> bool:
+    assignments = db.query(AdminRoleAssignment).filter(AdminRoleAssignment.admin_user_id == admin.id).all()
+    if any(a.role.code == RoleCode.SUPER_ADMIN and a.hospital_id is None for a in assignments):
+        return False
+    hospital_ids = {a.hospital_id for a in assignments if a.hospital_id is not None}
+    if not hospital_ids:
+        return False
+    active_count = db.query(Hospital).filter(Hospital.id.in_(hospital_ids), Hospital.is_active.is_(True)).count()
+    return active_count == 0
 
 
 @router.post("/register-hospital", response_model=AdminLoginResponse)
@@ -124,7 +128,16 @@ async def register_hospital(
     if not role:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "نقش‌ها هنوز seed نشده‌اند.")
 
-    hospital = Hospital(name=payload.hospital_name, slug=slugify(payload.hospital_name))
+    # بیمارستان تا تایید ادمین غیرفعال می‌ماند
+    hospital = Hospital(
+        name=payload.hospital_name,
+        slug=slugify(payload.hospital_name),
+        is_active=False,
+        address=payload.hospital_address,
+        phone_number=payload.hospital_phone,
+        responsible_phone=payload.responsible_phone,
+        responsible_national_id=payload.responsible_national_id,
+    )
     db.add(hospital)
     db.flush()
 
@@ -143,7 +156,7 @@ async def register_hospital(
 
     _set_admin_session_cookies(response, admin)
 
-    return AdminLoginResponse(full_name=admin.full_name, email=admin.email)
+    return AdminLoginResponse(full_name=admin.full_name, email=admin.email, hospital_pending_approval=True)
 
 
 @router.post("/logout")

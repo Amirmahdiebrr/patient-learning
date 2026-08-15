@@ -59,9 +59,16 @@ class Settings(BaseSettings):
     # ==========================
     # AI Patient Assistant
     # ==========================
+    AI_PROVIDER: str = Field(default="gapgpt")  # gapgpt | nvidia | deepseek | openai
+    AI_MODEL: str = Field(default="deepseek-v4-pro")
     AI_API_URL: str = Field(default="https://integrate.api.nvidia.com/v1/chat/completions")
     AI_API_KEY: str = Field(default="")
-    AI_MODEL: str = Field(default="deepseek-ai/deepseek-v4-pro")
+
+    GAPGPT_API_KEY: str = Field(default="")
+    GAPGPT_BASE_URL: str = Field(default="https://api.gapgpt.app/v1")
+    NVIDIA_API_KEY: str = Field(default="")
+    DEEPSEEK_API_KEY: str = Field(default="")
+    OPENAI_API_KEY: str = Field(default="")
 
     # ==========================
     # Admin JWT Auth
@@ -70,6 +77,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 12)
     ADMIN_TOKEN_COOKIE_NAME: str = Field(default="curalink_admin_token")
+
+    SESSION_SECRET_KEY: str = Field(default="")
 
     # ==========================
     # Bootstrap (one-time super_admin creation via seed script)
@@ -87,11 +96,21 @@ class Settings(BaseSettings):
     # Field-level encryption (patient PII: national_id, phone, insurance)
     # ==========================
     ENCRYPTION_KEY: str = Field(default="")
-
-    # One-way HMAC key used ONLY to build searchable hashes of
-    # encrypted fields (see app/core/encryption.py::blind_index).
-    # Must be a different secret than ENCRYPTION_KEY.
     SEARCH_HASH_KEY: str = Field(default="")
+
+    # ==========================
+    # Not yet wired - reserved for future integrations
+    # ==========================
+    SMS_PROVIDER: str = Field(default="console")
+    EMAIL_PROVIDER: str = Field(default="console")
+    ZARINPAL_MERCHANT_ID: str = Field(default="")
+    ZARINPAL_SANDBOX: bool = Field(default=True)
+    SMTP_HOST: str = Field(default="")
+    SMTP_PORT: int = Field(default=587)
+    SMTP_USER: str = Field(default="")
+    SMTP_PASSWORD: str = Field(default="")
+    SMTP_FROM: str = Field(default="")
+    SMTP_USE_TLS: bool = Field(default=True)
 
     @property
     def is_production(self) -> bool:

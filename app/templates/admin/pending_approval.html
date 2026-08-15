@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}در انتظار تایید | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-scan-required">
+    <div>
+        <div class="cl-scan-icon">⏳</div>
+        <h1 style="color:var(--navy); font-size:22px;">حساب شما در انتظار تایید ادمین است</h1>
+        <p style="color:#8CA0B3; max-width:420px; margin:14px auto 0; line-height:2;">
+            درخواست ثبت‌نام بیمارستان شما ثبت شده و پس از بررسی توسط ادمین پلتفرم، حساب شما فعال خواهد شد.
+        </p>
+        <button id="pending-logout-btn" class="cl-btn cl-btn-sm cl-btn-outline" style="margin-top:20px;">خروج</button>
+    </div>
+</div>
+<script>
+document.getElementById("pending-logout-btn").addEventListener("click", async function () {
+    try { await fetch("/admin/auth/logout", { method: "POST", credentials: "same-origin" }); }
+    finally { window.location.href = "/admin/login"; }
+});
+</script>
+{% endblock %}

@@ -1,21 +1,6 @@
 # app/api/v1/admin_panel.py
 """
 app/api/v1/admin_panel.py
-
-Renders the admin HTML shells. Auth is checked here server-side
-(decoding the httpOnly cookie) so an unauthenticated visit redirects
-straight to /admin/login. Every page also gets:
-  - csrf_token: read from a <meta name="csrf-token"> tag by each
-    page's inline script for state-changing requests.
-  - is_full_admin: distinguishes the "admin portal" surface (content
-    builder, org structure) from the "hospital portal" surface
-    (referrals, patient monitoring, QR codes) - see
-    app/api/deps_admin.py::is_full_admin. /admin/panel additionally
-    hard-redirects non-full-admins away, since URL-guessing shouldn't
-    be enough to reach the content builder.
-
-/admin/register-hospital is public (no auth) - it's how a hospital
-signs itself up for a HOSPITAL_ADMIN account in the first place.
 """
 
 from fastapi import APIRouter, Depends, Request
@@ -26,7 +11,7 @@ from app.core.config import settings
 from app.core.security import decode_admin_access_token
 from app.core.templates import templates
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import AdminUser
+from app.infrastructure.db.models import AdminUser, Hospital, AdminRoleAssignment, RoleCode
 from app.api.deps_admin import get_current_admin, is_full_admin
 
 router = APIRouter(prefix="/admin", tags=["admin_panel"])
@@ -35,6 +20,17 @@ router = APIRouter(prefix="/admin", tags=["admin_panel"])
 def _is_authenticated(request: Request) -> bool:
     token = request.cookies.get(settings.ADMIN_TOKEN_COOKIE_NAME)
     return bool(token) and decode_admin_access_token(token) is not None
+
+
+def _has_pending_hospital(db: Session, admin: AdminUser) -> bool:
+    assignments = db.query(AdminRoleAssignment).filter(AdminRoleAssignment.admin_user_id == admin.id).all()
+    if any(a.role.code == RoleCode.SUPER_ADMIN and a.hospital_id is None for a in assignments):
+        return False
+    hospital_ids = {a.hospital_id for a in assignments if a.hospital_id is not None}
+    if not hospital_ids:
+        return False
+    active_count = db.query(Hospital).filter(Hospital.id.in_(hospital_ids), Hospital.is_active.is_(True)).count()
+    return active_count == 0
 
 
 def _render_admin_page(
@@ -50,6 +46,12 @@ def _render_admin_page(
         return RedirectResponse(url="/admin/login", status_code=303)
 
     full_admin = is_full_admin(admin, db)
+
+    if not full_admin and _has_pending_hospital(db, admin):
+        return templates.TemplateResponse(
+            request, "admin/pending_approval.html", {"request": request},
+        )
+
     if require_full_admin and not full_admin:
         return RedirectResponse(url="/admin/home", status_code=303)
 
@@ -103,3 +105,8 @@ async def admin_referrals_page(request: Request, db: Session = Depends(get_db)):
 @router.get("/qr-codes")
 async def admin_qr_codes_page(request: Request, db: Session = Depends(get_db)):
     return _render_admin_page(request, db, "admin/qr_codes.html", "qr_codes")
+
+
+@router.get("/hospital-approvals")
+async def admin_hospital_approvals_page(request: Request, db: Session = Depends(get_db)):
+    return _render_admin_page(request, db, "admin/hospital_approvals.html", "hospital_approvals", require_full_admin=True)

@@ -2,11 +2,10 @@
 """
 app/api/v1/assistant.py
 
-JSON endpoint for the patient AI assistant chat widget. Rate-limited
-by IP to prevent a single browser/script from driving up AI provider
-costs by spamming questions. Publishes AIConversationStarted when the
-incoming request has no prior history (i.e. this is the first
-question of a new conversation on the client).
+JSON endpoint for the patient AI assistant. Used both by the general
+chat widget on patient_home.html and by the lesson-scoped widget on
+lesson_detail.html (payload.lesson_id, if present and published,
+gets priority in the AI's context).
 """
 
 from fastapi import APIRouter, Depends
@@ -16,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.event_bus import event_bus
 from app.core.events import AIConversationStarted
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import PatientJourneyProfile
+from app.infrastructure.db.models import PatientJourneyProfile, Lesson
 from app.api.deps import AccessContext, get_access_context, get_active_journey
 from app.api.deps_rate_limit import rate_limit
 from app.schemas.patient import PatientAssistantAskRequest
@@ -45,6 +44,14 @@ async def ask_assistant(
     if not journey.onboarding_completed_at:
         return JSONResponse({"error": "ابتدا باید پرسش‌نامه‌ی ورود را تکمیل کنید."}, status_code=400)
 
+    focus_lesson = None
+    if payload.lesson_id:
+        focus_lesson = (
+            db.query(Lesson)
+            .filter(Lesson.id == payload.lesson_id, Lesson.is_published.is_(True))
+            .first()
+        )
+
     if not payload.history:
         event_bus.publish(AIConversationStarted(
             patient_access_profile_id=context.patient_profile.id,
@@ -60,6 +67,7 @@ async def ask_assistant(
             hospital_id=context.hospital_id,
             department_id=context.department_id,
             department_type_id=context.department.department_type_id,
+            focus_lesson=focus_lesson,
         )
     except AIProviderError as exc:
         return JSONResponse({"error": str(exc)}, status_code=503)

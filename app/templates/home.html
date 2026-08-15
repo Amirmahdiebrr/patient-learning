@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}CuraLink | آموزش هوشمند، مراقبت بهتر{% endblock %}
+{% block body_class %}cl-home-page{% endblock %}
+
+{% block header %}
+<header class="cl-home-navbar">
+    <div class="cl-home-navbar-inner">
+        <a href="/" class="cl-home-logo">
+            <img src="/static/img/logo.png" alt="CuraLink">
+            <span>CuraLink</span>
+        </a>
+
+        <nav class="cl-home-nav-links">
+            <a href="/" class="cl-home-nav-link cl-home-nav-link-active">خانه</a>
+            <a href="https://curalinkcare.com/our-services/" class="cl-home-nav-link">خدمات ما</a>
+            <a href="https://curalinkcare.com/about/" class="cl-home-nav-link">درباره ما</a>
+            <a href="https://curalinkcare.com/contact/" class="cl-home-nav-link">تماس با ما</a>
+        </nav>
+
+        <div class="cl-home-auth-dropdown">
+            <button class="cl-btn cl-btn-sm" id="auth-dropdown-btn">ثبت‌نام و ورود</button>
+            <div class="cl-home-auth-menu" id="auth-dropdown-menu">
+                <div class="cl-home-auth-col">
+                    <span class="cl-home-auth-col-title">ثبت‌نام</span>
+                    <a href="/register"><span class="material-symbols-outlined cl-icon-sm">person_add</span> ثبت‌نام مددجو</a>
+                    <a href="/admin/register-hospital"><span class="material-symbols-outlined cl-icon-sm">local_hospital</span> ثبت‌نام بیمارستان</a>
+                </div>
+                <div class="cl-home-auth-col">
+                    <span class="cl-home-auth-col-title">ورود</span>
+                    <a href="/login"><span class="material-symbols-outlined cl-icon-sm">login</span> ورود مددجو</a>
+                    <a href="/admin/login"><span class="material-symbols-outlined cl-icon-sm">local_hospital</span> ورود بیمارستان</a>
+                    <a href="/admin/login"><span class="material-symbols-outlined cl-icon-sm">admin_panel_settings</span> ورود پنل مدیریت</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="cl-hero">
+    <div class="cl-hero-overlay"></div>
+    <div class="cl-hero-content">
+        <h1>آموزش هوشمند،<br><span>مراقبت بهتر</span></h1>
+        <p>
+            CuraLink پلی بین مددجو و تیم درمانی است؛ آموزش‌های شخصی‌سازی‌شده،
+            دسترسی آسان و پیگیری هوشمند برای تجربه‌ای بهتر در مسیر درمان.
+        </p>
+        <div class="cl-hero-actions">
+            <a href="/login" class="cl-btn" style="width:auto; padding:0 30px;">ورود</a>
+            <a href="https://curalinkcare.com/our-services/" class="cl-btn cl-btn-outline" style="width:auto; padding:0 30px; background:rgba(255,255,255,.9);">بیشتر بدانید</a>
+        </div>
+
+        <div class="cl-hero-badges">
+            <div class="cl-hero-badge">
+                <span class="material-symbols-outlined cl-icon-md">smartphone</span>
+                <span>دسترسی آسان<br><small>بدون نصب اپلیکیشن</small></span>
+            </div>
+            <div class="cl-hero-badge">
+                <span class="material-symbols-outlined cl-icon-md">shield</span>
+                <span>امن و خصوصی<br><small>حفظ اطلاعات شما</small></span>
+            </div>
+            <div class="cl-hero-badge">
+                <span class="material-symbols-outlined cl-icon-md">verified</span>
+                <span>علمی و معتبر<br><small>تایید شده توسط تیم درمان</small></span>
+            </div>
+            <div class="cl-hero-badge">
+                <span class="material-symbols-outlined cl-icon-md">schedule</span>
+                <span>همیشه همراه شما<br><small>در هر زمان و مکان</small></span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cl-home-section">
+    <h2 class="cl-home-section-title">ویژگی‌های CuraLink</h2>
+    <p class="cl-home-section-sub">امکاناتی که تجربه‌ی درمان مددجو را ساده‌تر و شفاف‌تر می‌کند</p>
+
+    <div class="cl-admin-home-grid">
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">auto_stories</span></span>
+            <h3>محتوای آموزشی</h3>
+            <p>متناسب با بیماری، مرحله‌ی درمانی و شرایط شخصی هر مددجو.</p>
+        </div>
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">psychology</span></span>
+            <h3>دستیار هوشمند</h3>
+            <p>پاسخ به سوالات عمومی مددجو، در هر ساعت از شبانه‌روز.</p>
+        </div>
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">quiz</span></span>
+            <h3>ارزیابی و آزمون</h3>
+            <p>سنجش یادگیری مددجو پس از هر درس با آزمون‌های کوتاه.</p>
+        </div>
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">notifications_active</span></span>
+            <h3>پیگیری و یادآوری</h3>
+            <p>یادآوری‌های پس از ترخیص تا هیچ نکته‌ای فراموش نشود.</p>
+        </div>
+    </div>
+</section>
+
+<section class="cl-home-section cl-home-section-alt">
+    <h2 class="cl-home-section-title">خدمات ما</h2>
+    <p class="cl-home-section-sub">خدماتی که پلتفرم CuraLink برای بیمارستان‌ها و مددجویان فراهم می‌کند</p>
+
+    <div class="cl-admin-home-grid">
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">auto_stories</span></span>
+            <h3>آموزش شخصی‌سازی‌شده</h3>
+            <p>محتوای آموزشی بر اساس بیماری، بخش و مرحله‌ی درمانی هر مددجو ارائه می‌شود.</p>
+        </div>
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">qr_code_2</span></span>
+            <h3>ورود سریع با QR بخش</h3>
+            <p>مددجو با اسکن کد QR نصب‌شده در بخش، مستقیم وارد مسیر آموزشی همان بخش می‌شود.</p>
+        </div>
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">notifications_active</span></span>
+            <h3>پیگیری پس از ترخیص</h3>
+            <p>یادآوری خودکار پس از ترخیص تا هیچ نکته‌ی مراقبتی فراموش نشود.</p>
+        </div>
+        <div class="cl-admin-home-card">
+            <span class="cl-admin-home-icon"><span class="material-symbols-outlined">query_stats</span></span>
+            <h3>گزارش و آمار بیمارستان</h3>
+            <p>گزارش کامل مددجویان، نرخ تکمیل آموزش و موفقیت آزمون‌ها برای تیم درمان.</p>
+        </div>
+    </div>
+</section>
+
+<section class="cl-home-section">
+    <h2 class="cl-home-section-title">سوالات متداول</h2>
+    <p class="cl-home-section-sub">پاسخ به پرتکرارترین سوالات درباره‌ی CuraLink</p>
+
+    <div class="cl-home-faq">
+        <details class="cl-home-faq-item">
+            <summary>CuraLink چیست و چه کاربردی دارد؟</summary>
+            <p>CuraLink پلتفرمی است که محتوای آموزشی شخصی‌سازی‌شده را بر اساس بیماری، نوع درمان و مرحله‌ی بستری در اختیار مددجو قرار می‌دهد و روند درمان تا پس از ترخیص را پیگیری می‌کند.</p>
+        </details>
+        <details class="cl-home-faq-item">
+            <summary>آیا نیاز به نصب اپلیکیشن دارم؟</summary>
+            <p>خیر، CuraLink کاملاً تحت وب است و فقط با اسکن QR بخش یا ثبت‌نام مستقیم در دسترس شماست.</p>
+        </details>
+        <details class="cl-home-faq-item">
+            <summary>اطلاعات هویتی من چقدر امن است؟</summary>
+            <p>اطلاعات هویتی مددجو (کد ملی، شماره تماس) به‌صورت رمزنگاری‌شده ذخیره می‌شود و فقط در اختیار تیم درمانی مرتبط با پرونده‌ی شماست.</p>
+        </details>
+        <details class="cl-home-faq-item">
+            <summary>دستیار هوشمند به چه سوالاتی پاسخ می‌دهد؟</summary>
+            <p>دستیار هوشمند فقط به سوالات عمومی مرتبط با روند بستری، آماده‌سازی قبل از عمل، مراقبت‌های بعد از عمل و مراحل ترخیص - بر اساس محتوای آموزشی همان بخش - پاسخ می‌دهد.</p>
+        </details>
+        <details class="cl-home-faq-item">
+            <summary>آیا دستیار هوشمند می‌تواند تشخیص بدهد یا دارو تجویز کند؟</summary>
+            <p>خیر. دستیار هوشمند هرگز تشخیص پزشکی نمی‌دهد و دارو یا دوز تجویز نمی‌کند؛ برای هر علامت هشداردهنده یا سوال تخصصی، مددجو را به تماس فوری با پرستار یا پزشک ارجاع می‌دهد.</p>
+        </details>
+        <details class="cl-home-faq-item">
+            <summary>بیمارستان‌ها چطور به CuraLink متصل می‌شوند؟</summary>
+            <p>از طریق فرم «ثبت‌نام بیمارستان»؛ پس از بررسی و تایید ادمین پلتفرم، حساب بیمارستان فعال شده و بخش‌ها و کدهای QR ساخته می‌شوند.</p>
+        </details>
+        <details class="cl-home-faq-item">
+            <summary>اگر QR بخش را گم کنم یا خطایی رخ دهد چه کنم؟</summary>
+            <p>می‌توانید بدون نیاز به QR از طریق «ثبت‌نام مددجو» مستقیماً ثبت‌نام کنید و بیمارستان و بخش خود را انتخاب نمایید.</p>
+        </details>
+    </div>
+</section>
+
+<section class="cl-home-section cl-home-section-alt">
+    <h2 class="cl-home-section-title">دستیار هوشمند CuraLink</h2>
+    <p class="cl-home-section-sub">سوال خود را بپرسید، دستیار هوشمند بر اساس محتوای آموزشی پاسخ می‌دهد</p>
+
+    <div class="cl-home-chat-box">
+        <div class="cl-home-chat-header">
+            <span>دستیار هوشمند CuraLink</span>
+        </div>
+        <div class="cl-home-chat-body" id="home-chat-messages"></div>
+        <form class="cl-home-chat-input-row" id="home-chat-form">
+            <input type="text" id="home-chat-input" placeholder="سوال خود را بنویسید..." autocomplete="off">
+            <button type="submit">ارسال</button>
+        </form>
+    </div>
+</section>
+
+<footer class="cl-home-footer">
+    <div class="cl-home-footer-top">
+        <div class="cl-home-footer-brand">
+            <img src="/static/img/logo.png" alt="CuraLink">
+            <div>
+                <h3>کیورالینک</h3>
+                <p>شرکت درمان پیوند ایرانیان</p>
+            </div>
+        </div>
+        <p class="cl-home-footer-desc">
+            کیورالینک، پلتفرم هوشمند درمان و مراقبت‌های پزشکی است که با همکاری پزشکان، پرستاران و درمانگران
+            متخصص فعالیت می‌کند. تمام خدمات بر اساس استانداردهای حرفه‌ای و با تأکید بر اخلاق، شفافیت و امنیت
+            اطلاعات ارائه می‌شود. کیورالینک همراه شما تا روند درمان، پیگیری و مراقبت از مددجو با آرامش و اطمینان انجام شود.
+        </p>
+    </div>
+
+    <div class="cl-home-footer-cols">
+        <div class="cl-home-footer-col">
+            <h4>دسترسی سریع</h4>
+            <a href="https://curalinkcare.com/our-services/">خدمات کیورالینک</a>
+            <a href="https://curalinkcare.com/about/">درباره ما</a>
+            <a href="https://curalinkcare.com/contact/">تماس با ما</a>
+            <a href="/register">ثبت‌نام مددجو</a>
+        </div>
+        <div class="cl-home-footer-col">
+            <h4>خدمات پزشکی</h4>
+            <a href="https://curalinkcare.com/our-services/">آموزش بیمار</a>
+            <a href="https://curalinkcare.com/our-services/">دستیار هوشمند</a>
+            <a href="https://curalinkcare.com/our-services/">پیگیری پس از ترخیص</a>
+            <a href="https://curalinkcare.com/our-services/">آزمون و ارزیابی</a>
+        </div>
+        <div class="cl-home-footer-col">
+            <h4>شبکه‌های اجتماعی</h4>
+            <a href="#"><span class="material-symbols-outlined cl-icon-sm">send</span> Telegram: curalinkcare</a>
+            <a href="#"><span class="material-symbols-outlined cl-icon-sm">chat</span> WhatsApp: 09214728753</a>
+            <a href="#"><span class="material-symbols-outlined cl-icon-sm">photo_camera</span> Instagram: curalink.ir</a>
+        </div>
+        <div class="cl-home-footer-col">
+            <h4>راه‌های ارتباطی</h4>
+            <a href="tel:02191694499"><span class="material-symbols-outlined cl-icon-sm">call</span> 021-91694499</a>
+            <a href="tel:09913055620"><span class="material-symbols-outlined cl-icon-sm">call</span> 09913055620</a>
+            <a href="mailto:info@curalinkcare.com"><span class="material-symbols-outlined cl-icon-sm">mail</span> info@curalinkcare.com</a>
+            <p class="cl-home-footer-address">
+                استان آذربایجان غربی، ارومیه، گلشهر یک، کوی گلنار،<br>
+                مجتمع گلستان یک، بلوک یاس
+            </p>
+        </div>
+    </div>
+
+    <div class="cl-home-footer-bottom">
+        <p>کلیه حقوق این وب‌سایت متعلق به شرکت درمان پیوند ایرانیان (برند ثبت‌شده کیورالینک — شماره ثبت 24497) است.</p>
+    </div>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const btn = document.getElementById("auth-dropdown-btn");
+    const menu = document.getElementById("auth-dropdown-menu");
+
+    btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        menu.classList.toggle("cl-home-auth-menu-open");
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!menu.contains(e.target) && e.target !== btn) {
+            menu.classList.remove("cl-home-auth-menu-open");
+        }
+    });
+})();
+
+(function () {
+    const form = document.getElementById("home-chat-form");
+    const input = document.getElementById("home-chat-input");
+    const messagesEl = document.getElementById("home-chat-messages");
+
+    function addMessage(role, text) {
+        const bubble = document.createElement("div");
+        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
+        bubble.textContent = text;
+        messagesEl.appendChild(bubble);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+        addMessage("user", question);
+        input.value = "";
+        window.location.href = "/login";
+    });
+})();
+</script>
+{% endblock %}

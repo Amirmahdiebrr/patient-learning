@@ -22,6 +22,7 @@ from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.patient_home import router as patient_home_router
 from app.api.v1.patient_lessons import router as patient_lessons_router
 from app.api.v1.patient_self_auth import router as patient_self_auth_router
+from app.api.v1.patient_profile import router as patient_profile_router
 from app.api.v1.assistant import router as assistant_router
 from app.api.v1.admin_auth import router as admin_auth_router
 from app.api.v1.admin_users import router as admin_users_router
@@ -53,7 +54,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 ALL_ROUTERS = [
     entry_router, welcome_router, onboarding_router, patient_home_router,
-    patient_lessons_router, patient_self_auth_router, assistant_router,
+    patient_lessons_router, patient_self_auth_router, patient_profile_router, assistant_router,
     admin_auth_router, admin_users_router,
     admin_hospitals_router, admin_qr_router, admin_content_router, admin_lesson_draft_router,
     admin_media_upload_router, admin_patient_report_router, admin_audit_log_router,
@@ -72,8 +73,8 @@ async def access_gate_exception_handler(request: Request, exc: AccessGateError):
 
 
 @app.get("/")
-async def root_redirect_to_scan_notice(request: Request):
-    return templates.TemplateResponse(request, "scan_required.html", {"request": request})
+async def home_page(request: Request):
+    return templates.TemplateResponse(request, "home.html", {"request": request})
 
 
 @app.on_event("startup")

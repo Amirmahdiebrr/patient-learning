@@ -1,22 +1,18 @@
 """
 app/services/patient_assistant_service.py
 
-Builds the context-aware prompt for the patient AI assistant: pulls
-the published lessons relevant to the patient's current journey stage,
-department type and disease/treatment (same lessons the targeting
-engine would show them), then asks the AI, grounded in that content
-first.
+Builds the context-aware prompt for the patient AI assistant. If a
+specific lesson is being viewed (focus_lesson), its content is placed
+first and flagged as "the lesson the patient is currently reading",
+so the assistant answers questions about that lesson accurately
+before falling back to the rest of the journey's content.
 """
 
 import uuid
 
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import (
-    PatientJourneyProfile,
-    EducationSection,
-    Lesson,
-)
+from app.infrastructure.db.models import PatientJourneyProfile, Lesson
 from app.infrastructure.external.ai_provider import ask_ai, AIProviderError
 from app.services.content_targeting_service import get_lessons_for_journey
 from app.services.patient_assistant_prompt import PATIENT_ASSISTANT_SYSTEM_PROMPT
@@ -53,7 +49,16 @@ class PatientAssistantService:
         hospital_id: uuid.UUID,
         department_id: uuid.UUID,
         department_type_id: uuid.UUID | None,
+        focus_lesson: Lesson | None,
     ) -> str:
+        parts = []
+
+        if focus_lesson and focus_lesson.body_richtext:
+            parts.append(
+                f"### {focus_lesson.title} (درسی که بیمار در حال حاضر آن را می‌خواند - "
+                f"اولویت پاسخ با این محتواست)\n{focus_lesson.body_richtext}"
+            )
+
         lessons = get_lessons_for_journey(
             db, journey,
             hospital_id=hospital_id,
@@ -61,13 +66,14 @@ class PatientAssistantService:
             department_type_id=department_type_id,
         )
 
-        if not lessons:
-            return NO_CONTEXT_TEXT
-
-        parts = []
         for lesson in lessons:
+            if focus_lesson and lesson.id == focus_lesson.id:
+                continue
             if lesson.body_richtext:
                 parts.append(f"### {lesson.title}\n{lesson.body_richtext}")
+
+        if not parts:
+            return NO_CONTEXT_TEXT
 
         combined = "\n\n".join(parts)
         return combined[:MAX_LESSON_CONTEXT_CHARS] if combined else NO_CONTEXT_TEXT
@@ -81,10 +87,11 @@ class PatientAssistantService:
         hospital_id: uuid.UUID,
         department_id: uuid.UUID,
         department_type_id: uuid.UUID | None,
+        focus_lesson: Lesson | None = None,
     ) -> str:
 
         lesson_context = self._build_lesson_context(
-            db, journey, hospital_id, department_id, department_type_id
+            db, journey, hospital_id, department_id, department_type_id, focus_lesson
         )
         history_text = self._format_history(history)
 

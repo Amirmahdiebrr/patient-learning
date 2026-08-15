@@ -1,19 +1,5 @@
 """
 app/api/v1/admin_hospitals.py
-
-Admin CRUD for hospitals and departments. Departments can optionally
-link to a StandardDepartmentType from the fixed taxonomy for
-consistent classification across hospitals - this is what
-automatically attaches the shared content library built under
-EducationSection.department_type_id.
-
-Hospitals and departments are never hard-deleted (other tables like
-QRAccessPoint and PatientAccessProfile reference them and hard
-deletion would either fail on the FK or silently orphan patient data).
-Instead they are deactivated/reactivated via is_active.
-
-Publishes AdminContentAction for hospital/department create, update,
-deactivate, reactivate.
 """
 
 import uuid
@@ -30,7 +16,7 @@ from app.infrastructure.db.models import (
 from app.schemas.admin import (
     HospitalCreateRequest, HospitalUpdateRequest, HospitalResponse,
     DepartmentCreateRequest, DepartmentUpdateRequest, DepartmentResponse,
-    StandardDepartmentTypeResponse,
+    StandardDepartmentTypeResponse, PendingHospitalResponse,
     slugify,
 )
 from app.api.deps_admin import ScopeCheck, get_current_admin
@@ -110,19 +96,44 @@ async def list_hospitals(
     return query.order_by(Hospital.name).all()
 
 
+@router.get("/hospitals/pending-approval", response_model=list[PendingHospitalResponse])
+async def list_pending_hospitals(
+    admin: AdminUser = Depends(require_super_admin()),
+    db: Session = Depends(get_db),
+):
+    hospitals = (
+        db.query(Hospital)
+        .filter(Hospital.is_active.is_(False))
+        .order_by(Hospital.created_at.desc())
+        .all()
+    )
+
+    results = []
+    for h in hospitals:
+        assignments = db.query(AdminRoleAssignment).filter(AdminRoleAssignment.hospital_id == h.id).all()
+        assignment = next((a for a in assignments if a.role.code == RoleCode.HOSPITAL_ADMIN), None)
+        responsible = assignment.admin_user if assignment else None
+
+        results.append(PendingHospitalResponse(
+            id=h.id,
+            name=h.name,
+            address=h.address,
+            phone_number=h.phone_number,
+            responsible_phone=h.responsible_phone,
+            responsible_national_id=h.responsible_national_id,
+            responsible_full_name=responsible.full_name if responsible else None,
+            responsible_email=responsible.email if responsible else None,
+            created_at=h.created_at,
+        ))
+
+    return results
+
+
 @router.get("/my-hospitals", response_model=list[HospitalResponse])
 async def list_my_hospitals(
     admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    Unlike /admin/hospitals (every active hospital, used by the
-    full-admin org-structure page), this returns ONLY the hospitals
-    the current admin actually has scope over - used by the hospital
-    portal pages (dashboard, patients, referrals, QR codes) so a
-    hospital_admin/department_admin/doctor doesn't see every
-    hospital in the platform in their selector.
-    """
     assignments = (
         db.query(AdminRoleAssignment)
         .filter(AdminRoleAssignment.admin_user_id == admin.id)
@@ -238,7 +249,7 @@ async def reactivate_hospital(
 
 
 # ==========================
-# StandardDepartmentType (read-only, fixed lookup)
+# StandardDepartmentType
 # ==========================
 
 @router.get("/department-types", response_model=list[StandardDepartmentTypeResponse])

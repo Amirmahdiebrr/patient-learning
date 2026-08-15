@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}تایید بیمارستان‌ها | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="margin-top:24px;">
+        <h1>بیمارستان‌های در انتظار تایید</h1>
+        <p class="cl-sub">بررسی درخواست‌های ثبت‌نام بیمارستان و فعال‌سازی حساب آن‌ها.</p>
+        <div id="pending-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function api(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        options.headers = Object.assign(
+            { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) { window.location.href = "/admin/login"; throw new Error("unauthorized"); }
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    const listEl = document.getElementById("pending-list");
+
+    async function loadPending() {
+        listEl.innerHTML = '<p class="cl-admin-empty">در حال بارگذاری...</p>';
+        try {
+            const rows = await api("/admin/hospitals/pending-approval");
+            listEl.innerHTML = rows.length === 0
+                ? '<p class="cl-admin-empty">درخواست در انتظاری وجود ندارد.</p>'
+                : rows.map(function (h) {
+                    return `<div class="cl-admin-lesson-row">
+                        <div class="cl-admin-lesson-head">
+                            <strong>${escapeHtml(h.name)}</strong>
+                            <button class="cl-btn cl-btn-sm" data-approve="${h.id}">تایید و فعال‌سازی</button>
+                        </div>
+                        <p style="font-size:13px; color:var(--text); margin:10px 0 0;">
+                            ${h.address ? `<strong>آدرس:</strong> ${escapeHtml(h.address)}<br>` : ""}
+                            ${h.phone_number ? `<strong>تلفن بیمارستان:</strong> ${escapeHtml(h.phone_number)}<br>` : ""}
+                            <strong>مسئول:</strong> ${escapeHtml(h.responsible_full_name || "—")}<br>
+                            ${h.responsible_national_id ? `<strong>کد ملی مسئول:</strong> ${escapeHtml(h.responsible_national_id)}<br>` : ""}
+                            ${h.responsible_phone ? `<strong>موبایل مسئول:</strong> ${escapeHtml(h.responsible_phone)}<br>` : ""}
+                            <strong>ایمیل ورود:</strong> ${escapeHtml(h.responsible_email || "—")}
+                        </p>
+                    </div>`;
+                }).join("");
+
+            listEl.querySelectorAll("[data-approve]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    try {
+                        await api(`/admin/hospitals/${btn.dataset.approve}/reactivate`, { method: "POST" });
+                        AdminToast.success("بیمارستان تایید و فعال شد.");
+                        await loadPending();
+                    } catch (err) {
+                        AdminToast.error(err.message);
+                    }
+                });
+            });
+        } catch (err) {
+            listEl.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    loadPending();
+})();
+</script>
+{% endblock %}

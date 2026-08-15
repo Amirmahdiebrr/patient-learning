@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}پروفایل من | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container" style="max-width:640px;">
+  <div class="cl-card">
+    <div class="cl-profile-header">
+      <div class="cl-profile-avatar-wrap">
+        <img id="profile-avatar" src="/static/img/avatar-placeholder.png" alt="آواتار">
+        <label class="cl-profile-avatar-edit" for="avatar-input">
+          <span class="material-symbols-outlined cl-icon-sm">photo_camera</span>
+        </label>
+        <input type="file" id="avatar-input" accept="image/*" style="display:none;">
+      </div>
+      <div>
+        <h1 id="profile-name" style="margin:0;">—</h1>
+        <p class="cl-sub" id="profile-location" style="margin:4px 0 0;">—</p>
+      </div>
+    </div>
+
+    <div class="cl-profile-stats">
+      <div class="cl-profile-stat">
+        <span class="material-symbols-outlined cl-icon-md">timeline</span>
+        <div><small>مرحله‌ی فعلی</small><strong id="profile-stage">—</strong></div>
+      </div>
+      <div class="cl-profile-stat">
+        <span class="material-symbols-outlined cl-icon-md">medical_information</span>
+        <div><small>بیماری / درمان</small><strong id="profile-condition">—</strong></div>
+      </div>
+    </div>
+
+    <hr style="border:none; border-top:1px solid var(--line); margin:24px 0;">
+
+    <form id="profile-form">
+      <div class="cl-field"><label for="first_name">نام</label><input type="text" id="first_name"></div>
+      <div class="cl-field"><label for="last_name">نام خانوادگی</label><input type="text" id="last_name"></div>
+      <div class="cl-field"><label>کد ملی</label><input type="text" id="national_id" disabled></div>
+      <div class="cl-field"><label for="phone_number">شماره همراه</label><input type="tel" id="phone_number"></div>
+      <div class="cl-field"><label for="insurance_code">کد بیمه</label><input type="text" id="insurance_code"></div>
+      <div class="cl-admin-row">
+        <div class="cl-field"><label for="age">سن</label><input type="number" id="age" min="0" max="120"></div>
+        <div class="cl-field">
+          <label for="gender">جنسیت</label>
+          <select id="gender">
+            <option value="">— انتخاب کنید —</option>
+            <option value="female">زن</option>
+            <option value="male">مرد</option>
+            <option value="other">سایر</option>
+          </select>
+        </div>
+      </div>
+
+      <p id="profile-message" style="font-size:13.5px; display:none;"></p>
+      <button type="submit" class="cl-btn">ذخیره تغییرات</button>
+    </form>
+
+    <a href="/home" class="cl-btn cl-btn-outline" style="margin-top:12px; text-decoration:none; display:block; text-align:center;">بازگشت به خانه</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    async function loadProfile() {
+        const res = await fetch("/patient-auth/profile");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        document.getElementById("profile-name").textContent = data.first_name + " " + data.last_name;
+        document.getElementById("profile-location").textContent = data.hospital_name + " — بخش " + data.department_name;
+        document.getElementById("profile-stage").textContent = data.current_stage_name || "—";
+        document.getElementById("profile-condition").textContent = [data.disease_name, data.treatment_name].filter(Boolean).join(" / ") || "—";
+
+        if (data.avatar_url) document.getElementById("profile-avatar").src = data.avatar_url;
+
+        document.getElementById("first_name").value = data.first_name || "";
+        document.getElementById("last_name").value = data.last_name || "";
+        document.getElementById("national_id").value = data.national_id || "";
+        document.getElementById("phone_number").value = data.phone_number || "";
+        document.getElementById("insurance_code").value = data.insurance_code || "";
+        document.getElementById("age").value = data.age || "";
+        document.getElementById("gender").value = data.gender || "";
+    }
+
+    document.getElementById("avatar-input").addEventListener("change", async function () {
+        const file = this.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/patient-auth/profile/avatar", { method: "POST", body: formData });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById("profile-avatar").src = data.avatar_url;
+        }
+    });
+
+    document.getElementById("profile-form").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const msgEl = document.getElementById("profile-message");
+        const payload = {
+            first_name: document.getElementById("first_name").value.trim(),
+            last_name: document.getElementById("last_name").value.trim(),
+            phone_number: document.getElementById("phone_number").value.trim(),
+            insurance_code: document.getElementById("insurance_code").value.trim() || null,
+            age: document.getElementById("age").value ? parseInt(document.getElementById("age").value, 10) : null,
+            gender: document.getElementById("gender").value || null,
+        };
+
+        const res = await fetch("/patient-auth/profile", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        msgEl.style.display = "block";
+        if (res.ok) {
+            msgEl.style.color = "var(--success)";
+            msgEl.textContent = "اطلاعات با موفقیت ذخیره شد.";
+            loadProfile();
+        } else {
+            msgEl.style.color = "var(--warn)";
+            msgEl.textContent = data.detail || "خطا در ذخیره‌سازی.";
+        }
+    });
+
+    loadProfile();
+})();
+</script>
+{% endblock %}
