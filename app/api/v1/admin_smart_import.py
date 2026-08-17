@@ -1,13 +1,5 @@
 """
 app/api/v1/admin_smart_import.py
-
-"Smart import": the admin writes all lessons in one file (just title
-+ body per lesson - no stage/department metadata) and uploads it.
-Step 1 (/classify) asks the AI to guess each lesson's journey stage +
-department type + section label; the admin reviews/edits those
-suggestions in the panel. Step 2 (/commit) actually creates the
-sections/lessons from the (possibly edited) list. The AI only
-classifies placement - it never writes or alters lesson content.
 """
 
 import json
@@ -35,14 +27,25 @@ SAMPLE_TEMPLATE = {
     "lessons": [
         {
             "title": "در بدو ورود چه اتفاقی می‌افتد؟",
-            "body": "متن کامل درسی که خودت نوشته‌ای اینجا قرار می‌گیرد..."
+            "body": "متن کامل درسی که خودت نوشته‌ای اینجا قرار می‌گیرد...",
+            "quiz_questions": [
+                {
+                    "question_text": "بعد از ورود به بخش، اول باید چه کاری انجام دهید؟",
+                    "question_image_url": None,
+                    "options": [
+                        {"option_text": "به پرستار مراجعه کنید", "option_image_url": None, "is_correct": True},
+                        {"option_text": "مستقیم به تخت خود بروید", "option_image_url": None, "is_correct": False}
+                    ]
+                }
+            ]
         },
         {
             "title": "آماده‌سازی قبل از سزارین",
-            "body": "متن کامل این درس..."
+            "body": "متن کامل این درس...",
+            "quiz_questions": []
         }
     ],
-    "_help": "فقط عنوان و متن هر درس را بنویس؛ مرحله و نوع بخش را خودت مشخص نکن - هوش مصنوعی آن را تشخیص می‌دهد و بعد از آپلود می‌توانی نتیجه را ویرایش کنی."
+    "_help": "عنوان و متن هر درس را بنویس؛ مرحله و نوع بخش را خودت مشخص نکن - هوش مصنوعی آن را تشخیص می‌دهد. quiz_questions اختیاری است؛ دقیقاً یک گزینه‌ی هر سوال باید is_correct=true باشد."
 }
 
 
@@ -88,9 +91,10 @@ async def classify_smart_import(
             journey_stage_code=cls["journey_stage_code"],
             department_type_code=cls["department_type_code"],
             section_title=cls["section_title"],
+            quiz_questions=raw_item.quiz_questions,
             error=cls["error"],
         )
-        for lesson, cls in zip(lessons, classifications)
+        for lesson, cls, raw_item in zip(lessons, classifications, payload.lessons)
     ]
 
     return ClassifyResponse(

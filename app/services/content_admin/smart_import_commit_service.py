@@ -1,19 +1,14 @@
 """
 app/services/content_admin/smart_import_commit_service.py
-
-Commits a reviewed/edited SmartImportCommitPayload: for each item,
-finds-or-creates the EducationSection (by journey_stage +
-department_type + section_title) and finds-or-creates/updates the
-Lesson inside it (by title). Only placement - lesson body is exactly
-what the admin wrote, never altered or generated.
 """
 
 from app.core.sanitize import sanitize_html
 from app.infrastructure.db.models import (
     JourneyStage, JourneyStageCode, StandardDepartmentType,
     EducationSection, Lesson, LessonOverrideLevel,
+    QuizQuestion, QuizOption, QuizAttempt,
 )
-from app.schemas.content_bulk_import import SmartImportCommitPayload
+from app.schemas.content_bulk_import import SmartImportCommitPayload, RawQuizQuestionImportItem
 
 
 def _resolve_journey_stage(db, code: str) -> JourneyStage | None:
@@ -84,10 +79,44 @@ def _find_or_create_lesson(db, section: EducationSection, title: str, body: str 
     return lesson, True
 
 
+def _replace_quiz_questions(db, lesson: Lesson, quiz_questions: list[RawQuizQuestionImportItem]) -> int:
+    existing_question_ids = [
+        row[0] for row in db.query(QuizQuestion.id).filter(QuizQuestion.lesson_id == lesson.id).all()
+    ]
+    if existing_question_ids:
+        db.query(QuizAttempt).filter(QuizAttempt.question_id.in_(existing_question_ids)).delete(synchronize_session=False)
+        db.query(QuizQuestion).filter(QuizQuestion.id.in_(existing_question_ids)).delete(synchronize_session=False)
+        db.flush()
+
+    created = 0
+    for q in quiz_questions:
+        question = QuizQuestion(
+            lesson_id=lesson.id,
+            question_text=q.question_text,
+            question_image_url=q.question_image_url,
+            display_order=created,
+        )
+        db.add(question)
+        db.flush()
+
+        for i, opt in enumerate(q.options):
+            db.add(QuizOption(
+                question_id=question.id,
+                option_text=opt.option_text,
+                option_image_url=opt.option_image_url,
+                is_correct=opt.is_correct,
+                display_order=i,
+            ))
+        created += 1
+
+    return created
+
+
 def run_smart_import_commit(db, payload: SmartImportCommitPayload) -> dict:
     summary = {
         "sections_created": 0, "sections_reused": 0,
         "lessons_created": 0, "lessons_updated": 0,
+        "quiz_questions_created": 0,
         "errors": [],
     }
 
@@ -107,8 +136,11 @@ def run_smart_import_commit(db, payload: SmartImportCommitPayload) -> dict:
         )
         summary["sections_created" if section_created else "sections_reused"] += 1
 
-        _, lesson_created = _find_or_create_lesson(db, section, item.title, item.body, item.is_published)
+        lesson, lesson_created = _find_or_create_lesson(db, section, item.title, item.body, item.is_published)
         summary["lessons_created" if lesson_created else "lessons_updated"] += 1
+
+        if item.quiz_questions:
+            summary["quiz_questions_created"] += _replace_quiz_questions(db, lesson, item.quiz_questions)
 
     db.commit()
     return summary

@@ -20,8 +20,9 @@
     <div class="cl-card cl-admin-card">
         <h1>وارد کردن هوشمند آموزش‌ها</h1>
         <p class="cl-sub">
-            دروسی که خودت از قبل نوشته‌ای را در یک فایل JSON (فقط عنوان + متن هر درس، بدون مرحله/بخش) آپلود کن؛
+            دروسی که خودت از قبل نوشته‌ای را در یک فایل JSON (عنوان + متن + به‌صورت اختیاری سوالات آزمون هر درس، بدون مرحله/بخش) آپلود کن؛
             هوش مصنوعی مرحله و نوع بخش هرکدام را تشخیص می‌دهد، خودت نتیجه را زیر همین کارت بازبینی/ویرایش می‌کنی و بعد تایید می‌کنی تا واقعاً ساخته شوند.
+            اگر برای یک درس در فایل، سوالات آزمون هم نوشته باشی، همان‌ها به‌عنوان آزمون آن درس ثبت می‌شوند.
         </p>
         <div class="cl-admin-inline-form">
             <button id="download-smart-import-template-btn" class="cl-btn cl-btn-sm cl-btn-outline">دانلود نمونه فایل</button>
@@ -780,12 +781,17 @@
 
         smartImportState.forEach(function (item, idx) {
             const errorNote = item.error ? `<p style="color:var(--warn); font-size:12px; margin:4px 0 0;">${escapeHtml(item.error)}</p>` : "";
+            const quizCount = (item.quiz_questions || []).length;
+            const quizNote = quizCount > 0
+                ? `<p style="color:var(--accent); font-size:12px; margin:6px 0 0;">${quizCount} سوال آزمون همراه این درس ثبت خواهد شد.</p>`
+                : "";
             html += `<div class="cl-admin-lesson-row" data-smart-idx="${idx}">
                 <div class="cl-admin-lesson-head">
                     <strong>${escapeHtml(item.title)}</strong>
                     <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-smart-remove="${idx}" title="حذف از لیست">🗑</button>
                 </div>
                 ${errorNote}
+                ${quizNote}
                 <div class="cl-admin-row" style="margin-top:10px;">
                     <div class="cl-field">
                         <label>مرحله‌ی سفر بیمار</label>
@@ -858,6 +864,7 @@
                     journey_stage_code: item.journey_stage_code,
                     department_type_code: item.department_type_code,
                     section_title: item.section_title,
+                    quiz_questions: item.quiz_questions || [],
                     error: item.error,
                 };
             });
@@ -884,6 +891,7 @@
                     department_type_code: item.department_type_code,
                     section_title: item.section_title,
                     is_published: true,
+                    quiz_questions: item.quiz_questions || [],
                 };
             });
 
@@ -897,6 +905,7 @@
                 <div class="cl-admin-mini-item">برچسب‌های موجود (استفاده مجدد): <strong>${summary.sections_reused}</strong></div>
                 <div class="cl-admin-mini-item">درس‌های ساخته‌شده: <strong>${summary.lessons_created}</strong></div>
                 <div class="cl-admin-mini-item">درس‌های به‌روزرسانی‌شده: <strong>${summary.lessons_updated}</strong></div>
+                <div class="cl-admin-mini-item">سوالات آزمون ثبت‌شده: <strong>${summary.quiz_questions_created}</strong></div>
             </div>`;
 
             if (summary.errors.length > 0) {

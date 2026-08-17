@@ -1,21 +1,34 @@
 """
 app/schemas/content_bulk_import.py
-
-Pydantic v2 DTOs for the "smart import" flow: the admin uploads a
-file of already-written lessons (title + body only - no stage/
-department metadata), the AI classifier suggests where each one
-belongs, the admin reviews/edits those suggestions in the panel, and
-only then are sections/lessons actually created (see
-admin_smart_import.py + lesson_classifier_service.py +
-smart_import_commit_service.py).
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+class RawQuizOptionImportItem(BaseModel):
+    option_text: str = Field(min_length=1, max_length=500)
+    option_image_url: str | None = None
+    is_correct: bool = False
+
+
+class RawQuizQuestionImportItem(BaseModel):
+    question_text: str = Field(min_length=2)
+    question_image_url: str | None = None
+    options: list[RawQuizOptionImportItem] = Field(min_length=2, max_length=10)
+
+    @field_validator("options")
+    @classmethod
+    def validate_exactly_one_correct(cls, value: list[RawQuizOptionImportItem]) -> list[RawQuizOptionImportItem]:
+        correct_count = sum(1 for opt in value if opt.is_correct)
+        if correct_count != 1:
+            raise ValueError("دقیقاً یک گزینه باید is_correct=true باشد.")
+        return value
 
 
 class RawLessonImportItem(BaseModel):
     title: str = Field(min_length=2, max_length=255)
     body: str | None = None
+    quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
 
 
 class RawLessonImportPayload(BaseModel):
@@ -28,12 +41,13 @@ class ClassifiedLessonItem(BaseModel):
     journey_stage_code: str | None
     department_type_code: str | None
     section_title: str
+    quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
     error: str | None = None
 
 
 class ClassifyResponse(BaseModel):
-    stage_options: list[dict]            # [{code, name}]
-    department_type_options: list[dict]  # [{code, name}]
+    stage_options: list[dict]
+    department_type_options: list[dict]
     items: list[ClassifiedLessonItem]
 
 
@@ -41,9 +55,10 @@ class SmartImportCommitItem(BaseModel):
     title: str = Field(min_length=2, max_length=255)
     body: str | None = None
     journey_stage_code: str
-    department_type_code: str | None = None  # null/"general" = عمومی
+    department_type_code: str | None = None
     section_title: str = Field(min_length=1, max_length=255)
     is_published: bool = True
+    quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
 
 
 class SmartImportCommitPayload(BaseModel):
@@ -55,4 +70,5 @@ class SmartImportCommitSummaryResponse(BaseModel):
     sections_reused: int
     lessons_created: int
     lessons_updated: int
+    quiz_questions_created: int
     errors: list[str]
