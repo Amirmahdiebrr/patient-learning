@@ -1,0 +1,20 @@
+{# app/templates/patient_nav.html #}
+<nav class="cl-patient-navbar-links">
+    <a href="/home" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">home</span><span>خانه</span></a>
+    <a href="/my-journey" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">route</span><span>مسیر درمان من</span></a>
+    <a href="/assistant" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">psychology</span><span>دستیار بالینی</span></a>
+    <a href="/profile" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">account_circle</span><span>پروفایل بیمار</span></a>
+    <button type="button" id="patient-nav-logout-btn" class="cl-patient-navbar-link cl-patient-navbar-logout">
+        <span class="material-symbols-outlined cl-icon-sm">logout</span><span>خروج</span>
+    </button>
+</nav>
+<script>
+(function () {
+    var btn = document.getElementById("patient-nav-logout-btn");
+    if (!btn) return;
+    btn.addEventListener("click", async function () {
+        try { await fetch("/patient-auth/logout", { method: "POST", credentials: "same-origin" }); }
+        finally { window.location.href = "/login"; }
+    });
+})();
+</script>

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}مسیر درمان من | CuraLink{% endblock %}
+{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
+{% block content %}
+<div class="cl-container">
+    {% include "patient_back_button.html" %}
+
+    <div class="cl-card cl-journey-welcome">
+        <h1>مسیر درمان من</h1>
+        <p class="cl-sub" style="margin:0;">{{ hospital.name }} — بخش {{ department.name }}</p>
+    </div>
+
+    <div class="cl-card">
+        <div class="cl-progress-overall-head">
+            <h2 class="cl-admin-h2" style="margin:0;">پیشرفت کلی</h2>
+            <span class="cl-progress-overall-percent">{{ progress.overall_percent }}٪</span>
+        </div>
+        <div class="cl-progress-track cl-progress-track-lg">
+            <div class="cl-progress-fill" style="width:{{ progress.overall_percent }}%;"></div>
+        </div>
+        <p class="cl-sub" style="margin:10px 0 0;">{{ progress.completed_lessons }} از {{ progress.total_lessons }} درس تکمیل‌شده</p>
+    </div>
+
+    <div class="cl-card">
+        <h2 class="cl-admin-h2">پیشرفت هر مرحله</h2>
+        {% if progress.stages|length == 0 %}
+        <p class="cl-admin-empty">هنوز محتوایی برای مسیر شما ثبت نشده است.</p>
+        {% else %}
+        <div class="cl-progress-stage-list">
+            {% for stage in progress.stages %}
+            <div class="cl-progress-stage-item">
+                <div class="cl-progress-stage-head">
+                    <span class="cl-progress-stage-name">
+                        {{ stage.stage_name }}
+                        {% if stage.is_current %}<span class="cl-admin-badge cl-admin-badge-live">مرحله‌ی فعلی</span>{% endif %}
+                        {% if stage.is_completed %}<span class="cl-admin-badge cl-journey-badge-completed">تکمیل‌شده</span>{% endif %}
+                    </span>
+                    <span class="cl-progress-stage-count">{{ stage.completed_lessons }} از {{ stage.total_lessons }}</span>
+                </div>
+                <div class="cl-progress-track">
+                    <div class="cl-progress-fill" style="width:{{ stage.percent }}%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="cl-card">
+        <h2 class="cl-admin-h2">نتیجه‌ی آزمون‌ها</h2>
+        {% if quiz_history|length == 0 %}
+        <p class="cl-admin-empty">هنوز در هیچ آزمونی شرکت نکرده‌اید.</p>
+        {% else %}
+        <div class="cl-quiz-history-list">
+            {% for attempt in quiz_history %}
+            <div class="cl-quiz-history-item {% if attempt.is_correct %}cl-quiz-history-item-correct{% else %}cl-quiz-history-item-wrong{% endif %}">
+                <span class="material-symbols-outlined cl-icon-md">
+                    {% if attempt.is_correct %}check_circle{% else %}cancel{% endif %}
+                </span>
+                <div class="cl-quiz-history-body">
+                    <p class="cl-quiz-history-question">{{ attempt.question_text }}</p>
+                    <p class="cl-quiz-history-answer">
+                        پاسخ شما: {{ attempt.selected_option_text }}
+                        {% if not attempt.is_correct and attempt.correct_option_text %}
+                        — پاسخ درست: {{ attempt.correct_option_text }}
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

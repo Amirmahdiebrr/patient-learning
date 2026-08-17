@@ -2,18 +2,21 @@
 """
 app/api/v1/assistant.py
 
-JSON endpoint for the patient AI assistant. Used both by the general
-chat widget on patient_home.html and by the lesson-scoped widget on
+Full-page patient AI assistant ("دستیار بالینی") plus the JSON
+endpoint used both by that page and by the lesson-scoped widget on
 lesson_detail.html (payload.lesson_id, if present and published,
-gets priority in the AI's context).
+gets priority in the AI's context). Conversation history for the
+full-page assistant is kept client-side (localStorage) - there is no
+server-side chat-session storage yet.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.event_bus import event_bus
 from app.core.events import AIConversationStarted
+from app.core.templates import templates
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import PatientJourneyProfile, Lesson
 from app.api.deps import AccessContext, get_access_context, get_active_journey
@@ -31,6 +34,15 @@ assistant_service = PatientAssistantService()
 
 ASK_RATE_LIMIT = 20
 ASK_RATE_WINDOW_SECONDS = 3600
+
+
+@router.get("")
+async def assistant_page(
+    request: Request,
+    context: AccessContext = Depends(get_access_context),
+    journey: PatientJourneyProfile = Depends(get_active_journey),
+):
+    return templates.TemplateResponse(request, "patient_assistant_page.html", {"request": request})
 
 
 @router.post("/ask")

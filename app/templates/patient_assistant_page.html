@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}دستیار بالینی | CuraLink{% endblock %}
+{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
+{% block content %}
+<div class="cl-container" style="max-width:1000px;">
+    {% include "patient_back_button.html" %}
+
+    <div class="cl-assistant-page-layout">
+        <aside class="cl-assistant-history-panel">
+            <div class="cl-assistant-history-head">
+                <span>تاریخچه گفتگوها</span>
+                <button type="button" id="new-chat-btn" class="cl-btn cl-btn-sm">+ گفتگوی جدید</button>
+            </div>
+            <div id="chat-history-list" class="cl-assistant-history-list"></div>
+        </aside>
+
+        <div class="cl-chat-box cl-assistant-page-chatbox">
+            <div class="cl-chat-header">
+                <div class="cl-chat-header-icon"><span class="material-symbols-outlined">psychology</span></div>
+                <div class="cl-chat-header-text">
+                    <strong>دستیار بالینی CuraLink</strong>
+                    <span>سوالات عمومی درباره‌ی روند درمان خود را بپرسید</span>
+                </div>
+            </div>
+            <div class="cl-chat-messages" id="assistant-messages">
+                <div class="cl-chat-empty-state" id="assistant-empty-state">
+                    <span class="material-symbols-outlined">chat_bubble</span>
+                    سوال خود را در کادر پایین بنویسید تا دستیار بالینی بر اساس محتوای آموزشی مسیر شما پاسخ دهد.
+                </div>
+            </div>
+            <form class="cl-chat-input-row" id="assistant-form">
+                <input type="text" id="assistant-input" class="cl-chat-input" placeholder="مثلاً: بعد از عمل چه زمانی می‌توانم غذا بخورم؟" autocomplete="off">
+                <button type="submit" class="cl-chat-send" id="assistant-send-btn">ارسال</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const STORAGE_KEY = "curalink_chat_sessions";
+
+    const messagesEl = document.getElementById("assistant-messages");
+    const emptyStateEl = document.getElementById("assistant-empty-state");
+    const form = document.getElementById("assistant-form");
+    const input = document.getElementById("assistant-input");
+    const sendBtn = document.getElementById("assistant-send-btn");
+    const historyListEl = document.getElementById("chat-history-list");
+    const newChatBtn = document.getElementById("new-chat-btn");
+
+    let sessions = loadSessions();
+    let activeSessionId = null;
+    let conversation = [];
+
+    function loadSessions() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveSessions() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch (e) {}
+    }
+
+    function formatDate(iso) {
+        try { return new Date(iso).toLocaleString("fa-IR"); } catch (e) { return iso; }
+    }
+
+    function renderHistoryList() {
+        if (sessions.length === 0) {
+            historyListEl.innerHTML = '<p class="cl-admin-empty">هنوز گفتگویی ثبت نشده.</p>';
+            return;
+        }
+        historyListEl.innerHTML = sessions.slice().reverse().map(function (s) {
+            const activeClass = s.id === activeSessionId ? "cl-assistant-history-item-active" : "";
+            return `<button type="button" class="cl-assistant-history-item ${activeClass}" data-session-id="${s.id}">
+                <span class="cl-assistant-history-item-title">${escapeHtml(s.title)}</span>
+                <span class="cl-assistant-history-item-date">${formatDate(s.startedAt)}</span>
+            </button>`;
+        }).join("");
+
+        historyListEl.querySelectorAll("[data-session-id]").forEach(function (btn) {
+            btn.addEventListener("click", function () { openSession(btn.dataset.sessionId); });
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    function renderMessages() {
+        messagesEl.innerHTML = "";
+        if (conversation.length === 0) {
+            messagesEl.appendChild(emptyStateEl);
+            return;
+        }
+        conversation.forEach(function (turn) {
+            const bubble = document.createElement("div");
+            bubble.className = "cl-chat-msg " + (turn.role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
+            bubble.textContent = turn.content;
+            messagesEl.appendChild(bubble);
+        });
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function startNewSession() {
+        activeSessionId = null;
+        conversation = [];
+        renderMessages();
+        renderHistoryList();
+        input.focus();
+    }
+
+    function openSession(sessionId) {
+        const session = sessions.find(function (s) { return s.id === sessionId; });
+        if (!session) return;
+        activeSessionId = session.id;
+        conversation = session.messages.slice();
+        renderMessages();
+        renderHistoryList();
+    }
+
+    function persistCurrentSession() {
+        if (conversation.length === 0) return;
+        if (!activeSessionId) {
+            activeSessionId = "s_" + Date.now();
+            sessions.push({
+                id: activeSessionId,
+                startedAt: new Date().toISOString(),
+                title: conversation[0].content.slice(0, 40),
+                messages: conversation,
+            });
+        } else {
+            const session = sessions.find(function (s) { return s.id === activeSessionId; });
+            if (session) session.messages = conversation;
+        }
+        saveSessions();
+        renderHistoryList();
+    }
+
+    function addMessage(role, text) {
+        conversation.push({ role: role === "user" ? "user" : "assistant", content: text });
+        renderMessages();
+    }
+
+    function showTyping() {
+        const typing = document.createElement("div");
+        typing.className = "cl-chat-typing";
+        typing.id = "assistant-typing";
+        typing.innerHTML = "<span></span><span></span><span></span>";
+        messagesEl.appendChild(typing);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+        const typing = document.getElementById("assistant-typing");
+        if (typing) typing.remove();
+    }
+
+    form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+
+        addMessage("user", question);
+        input.value = "";
+        sendBtn.disabled = true;
+        showTyping();
+
+        try {
+            const res = await fetch("/assistant/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: question, history: conversation }),
+            });
+            const data = await res.json();
+            hideTyping();
+
+            if (!res.ok) {
+                addMessage("ai", data.error || "خطایی رخ داد.");
+            } else {
+                addMessage("ai", data.answer);
+            }
+            persistCurrentSession();
+        } catch (err) {
+            hideTyping();
+            addMessage("ai", "ارتباط با سرور برقرار نشد.");
+        } finally {
+            sendBtn.disabled = false;
+        }
+    });
+
+    newChatBtn.addEventListener("click", startNewSession);
+
+    renderHistoryList();
+    renderMessages();
+})();
+</script>
+{% endblock %}

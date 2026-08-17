@@ -1,65 +1,97 @@
 {% extends "base.html" %}
 {% block title %}مسیر آموزشی شما | CuraLink{% endblock %}
+{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
 {% block content %}
 <div class="cl-container">
 
-    <div class="cl-card">
-        <div class="cl-lesson-header">
-            <h1>مسیر آموزشی شما</h1>
-            <a href="/profile" class="cl-fav-btn" style="text-decoration:none; display:flex; align-items:center; gap:6px;">
-                <span class="material-symbols-outlined cl-icon-sm">account_circle</span> پروفایل من
-            </a>
-        </div>
-        <p class="cl-sub">{{ hospital.name }} — بخش {{ department.name }}</p>
-
-        {% if lessons|length == 0 %}
-        <p style="color:#8CA0B3;">فعلاً محتوایی برای این مرحله ثبت نشده است.</p>
-        {% else %}
-        <div class="cl-lesson-list">
-            {% for lesson in lessons %}
-            <a href="/lessons/{{ lesson.id }}" class="cl-lesson-item" style="text-decoration:none; display:block;">
-                <h3>{{ lesson.title }}</h3>
-            </a>
-            {% endfor %}
-        </div>
-        {% endif %}
+    <div class="cl-card cl-journey-welcome">
+        <h1>خوش آمدید</h1>
+        <p class="cl-sub" style="margin:0;">
+            {{ hospital.name }} — بخش {{ department.name }}<br>
+            این مسیر آموزشی بالینی شماست؛ مراحل زیر را به ترتیب دنبال کنید. پس از مطالعه‌ی هر مرحله، مرحله‌ی بعدی برایتان باز می‌شود
+            و در هر زمان می‌توانید به مراحل قبلی هم برگردید. برای دیدن نمودار پیشرفت و نتیجه‌ی آزمون‌ها به «مسیر درمان من» سر بزنید.
+        </p>
     </div>
 
-    {% if stage_quiz_questions %}
+    {% if timeline|length == 0 %}
     <div class="cl-card">
-        <h2 style="color:var(--navy); font-size:18px; margin-bottom:18px;">آزمون این مرحله</h2>
-        {% for q in stage_quiz_questions %}
-        <div class="cl-quiz-question" data-question-id="{{ q.id }}">
-            {% if q.question_image_url %}
-            <img src="{{ q.question_image_url }}" class="cl-quiz-image">
-            {% endif %}
-            <p class="cl-quiz-text">{{ q.question_text }}</p>
-            <div class="cl-quiz-options">
-                {% for opt in q.options %}
-                <button class="cl-quiz-option" data-option-id="{{ opt.id }}">
-                    {% if opt.option_image_url %}
-                    <img src="{{ opt.option_image_url }}" class="cl-quiz-option-image">
-                    {% endif %}
-                    <span>{{ opt.option_text }}</span>
-                </button>
-                {% endfor %}
+        <p style="color:#8CA0B3;">فعلاً محتوایی برای مسیر شما ثبت نشده است.</p>
+    </div>
+    {% else %}
+    <div class="cl-journey-timeline" id="journey-timeline">
+        {% for stage in timeline %}
+        <div class="cl-card cl-journey-stage
+            {% if stage.is_current %}cl-journey-stage-current{% endif %}
+            {% if not stage.is_unlocked %}cl-journey-stage-locked{% endif %}">
+
+            {% if not stage.is_unlocked %}
+            <div class="cl-journey-stage-summary cl-journey-stage-summary-locked">
+                <span class="cl-journey-stage-index">{{ loop.index }}</span>
+                <span class="cl-journey-stage-title">{{ stage.stage_name }}</span>
+                <span class="cl-journey-lock-note">
+                    <span class="material-symbols-outlined cl-icon-sm">lock</span>
+                    برای دسترسی، ابتدا مرحله‌ی قبلی را کامل مطالعه کنید
+                </span>
             </div>
-            <p class="cl-quiz-result" style="display:none;"></p>
+            {% else %}
+            <details {% if stage.is_current or not stage.is_completed %}open{% endif %}>
+                <summary class="cl-journey-stage-summary">
+                    <span class="cl-journey-stage-index">{{ loop.index }}</span>
+                    <span class="cl-journey-stage-title">{{ stage.stage_name }}</span>
+                    {% if stage.is_completed %}
+                    <span class="cl-admin-badge cl-journey-badge-completed" style="margin-inline-start:auto;">
+                        <span class="material-symbols-outlined cl-icon-sm">check_circle</span> تکمیل‌شده
+                    </span>
+                    {% elif stage.is_current %}
+                    <span class="cl-admin-badge cl-admin-badge-live" style="margin-inline-start:auto;">مرحله‌ی فعلی شما</span>
+                    {% endif %}
+                </summary>
+
+                {% if stage.lessons %}
+                <div class="cl-lesson-list" style="margin-top:16px;">
+                    {% for item in stage.lessons %}
+                    <a href="/lessons/{{ item.lesson.id }}" class="cl-lesson-item cl-journey-lesson-item" style="text-decoration:none; display:block;">
+                        <h3>
+                            {{ item.lesson.title }}
+                            {% if item.is_completed %}
+                            <span class="material-symbols-outlined cl-icon-sm cl-journey-lesson-check">check_circle</span>
+                            {% endif %}
+                        </h3>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if stage.quiz_questions %}
+                <div class="cl-journey-stage-quiz">
+                    <h4 class="cl-journey-stage-quiz-title">آزمون این مرحله</h4>
+                    {% for q in stage.quiz_questions %}
+                    <div class="cl-quiz-question" data-question-id="{{ q.id }}">
+                        {% if q.question_image_url %}
+                        <img src="{{ q.question_image_url }}" class="cl-quiz-image">
+                        {% endif %}
+                        <p class="cl-quiz-text">{{ q.question_text }}</p>
+                        <div class="cl-quiz-options">
+                            {% for opt in q.options %}
+                            <button class="cl-quiz-option" data-option-id="{{ opt.id }}">
+                                {% if opt.option_image_url %}
+                                <img src="{{ opt.option_image_url }}" class="cl-quiz-option-image">
+                                {% endif %}
+                                <span>{{ opt.option_text }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <p class="cl-quiz-result" style="display:none;"></p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </details>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
     {% endif %}
-
-    <div class="cl-chat-box" id="assistant-box">
-        <div style="padding:18px 24px; border-bottom:1px solid var(--line); font-weight:700; color:var(--navy);">
-            💬 دستیار آموزشی — سوالات عمومی خود را اینجا بپرسید
-        </div>
-        <div class="cl-chat-messages" id="assistant-messages"></div>
-        <form class="cl-chat-input-row" id="assistant-form">
-            <input type="text" id="assistant-input" class="cl-chat-input" placeholder="مثلاً: بعد از عمل چه زمانی می‌توانم غذا بخورم؟" autocomplete="off">
-            <button type="submit" class="cl-chat-send">ارسال</button>
-        </form>
-    </div>
 
 </div>
 {% endblock %}
@@ -67,47 +99,6 @@
 {% block scripts %}
 <script>
 (function () {
-    const messagesEl = document.getElementById("assistant-messages");
-    const form = document.getElementById("assistant-form");
-    const input = document.getElementById("assistant-input");
-    let conversation = [];
-
-    function addMessage(role, text) {
-        const bubble = document.createElement("div");
-        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
-        bubble.textContent = text;
-        messagesEl.appendChild(bubble);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    form.addEventListener("submit", async function (e) {
-        e.preventDefault();
-        const question = input.value.trim();
-        if (!question) return;
-
-        addMessage("user", question);
-        conversation.push({ role: "user", content: question });
-        input.value = "";
-
-        try {
-            const res = await fetch("/assistant/ask", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ question: question, history: conversation }),
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                addMessage("ai", data.error || "خطایی رخ داد.");
-            } else {
-                addMessage("ai", data.answer);
-                conversation.push({ role: "assistant", content: data.answer });
-            }
-        } catch (err) {
-            addMessage("ai", "ارتباط با سرور برقرار نشد.");
-        }
-    });
-
     document.querySelectorAll(".cl-quiz-question").forEach(function (questionEl) {
         const questionId = questionEl.dataset.questionId;
         const resultEl = questionEl.querySelector(".cl-quiz-result");

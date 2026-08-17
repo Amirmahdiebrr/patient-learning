@@ -23,11 +23,16 @@ from app.schemas.patient import PatientProfileResponse, PatientProfileUpdateRequ
 
 router = APIRouter(tags=["patient_profile"])
 
-AVATAR_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-AVATAR_MAGIC_BYTES = {
-    ".jpg": b"\xff\xd8\xff", ".jpeg": b"\xff\xd8\xff", ".png": b"\x89PNG",
+AVATAR_ALLOWED_EXT = {
+    ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif",
+    ".heic", ".heif", ".avif", ".jfif",
 }
-AVATAR_MAX_BYTES = 5 * 1024 * 1024
+AVATAR_MAGIC_BYTES = {
+    ".jpg": b"\xff\xd8\xff", ".jpeg": b"\xff\xd8\xff", ".jfif": b"\xff\xd8\xff",
+    ".png": b"\x89PNG", ".gif": b"GIF8", ".bmp": b"BM",
+}
+AVATAR_FTYP_BASED_EXT = {".heic", ".heif", ".avif"}
+AVATAR_MAX_BYTES = 15 * 1024 * 1024
 
 
 def _get_registration(db: Session, profile_id: uuid.UUID) -> PatientRegistration:
@@ -61,6 +66,18 @@ def _to_response(
         has_surgery=journey.has_surgery if journey else None,
         member_since=registration.created_at,
     )
+
+
+def _avatar_content_matches_extension(ext: str, contents: bytes) -> bool:
+    if ext in AVATAR_MAGIC_BYTES:
+        return contents.startswith(AVATAR_MAGIC_BYTES[ext])
+    if ext == ".webp":
+        return len(contents) >= 12 and contents[0:4] == b"RIFF" and contents[8:12] == b"WEBP"
+    if ext in AVATAR_FTYP_BASED_EXT:
+        return len(contents) >= 8 and contents[4:8] == b"ftyp"
+    if ext in (".tiff", ".tif"):
+        return contents.startswith(b"II*\x00") or contents.startswith(b"MM\x00*")
+    return True
 
 
 @router.get("/profile")
@@ -124,13 +141,9 @@ async def upload_avatar(
 
     contents = await file.read()
     if len(contents) > AVATAR_MAX_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "حجم تصویر نباید بیشتر از ۵ مگابایت باشد.")
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "حجم تصویر نباید بیشتر از ۱۵ مگابایت باشد.")
 
-    magic = AVATAR_MAGIC_BYTES.get(ext)
-    is_valid = bool(magic) and contents.startswith(magic)
-    if not is_valid and ext == ".webp":
-        is_valid = len(contents) >= 12 and contents[0:4] == b"RIFF" and contents[8:12] == b"WEBP"
-    if not is_valid:
+    if not _avatar_content_matches_extension(ext, contents):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "محتوای فایل با پسوند آن مطابقت ندارد.")
 
     os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)

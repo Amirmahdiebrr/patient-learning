@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ lesson.title }} | CuraLink{% endblock %}
+{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
 {% block content %}
 <div class="cl-container">
+    {% include "patient_back_button.html" %}
 
     <div class="cl-card">
         <div class="cl-lesson-header">
@@ -57,13 +59,22 @@
     </button>
 
     <div class="cl-chat-box" id="assistant-box">
-        <div style="padding:18px 24px; border-bottom:1px solid var(--line); font-weight:700; color:var(--navy);">
-            💬 سوال درباره‌ی همین درس؟ از دستیار هوشمند بپرسید
+        <div class="cl-chat-header">
+            <div class="cl-chat-header-icon"><span class="material-symbols-outlined">psychology</span></div>
+            <div class="cl-chat-header-text">
+                <strong>دستیار بالینی CuraLink</strong>
+                <span>سوال درباره‌ی همین درس؟ اینجا بپرسید</span>
+            </div>
         </div>
-        <div class="cl-chat-messages" id="assistant-messages"></div>
+        <div class="cl-chat-messages" id="assistant-messages">
+            <div class="cl-chat-empty-state" id="assistant-empty-state">
+                <span class="material-symbols-outlined">chat_bubble</span>
+                سوال خود را درباره‌ی همین درس در کادر پایین بنویسید.
+            </div>
+        </div>
         <form class="cl-chat-input-row" id="assistant-form">
             <input type="text" id="assistant-input" class="cl-chat-input" placeholder="مثلاً: منظور از این قسمت چیست؟" autocomplete="off">
-            <button type="submit" class="cl-chat-send">ارسال</button>
+            <button type="submit" class="cl-chat-send" id="assistant-send-btn">ارسال</button>
         </form>
     </div>
 
@@ -139,16 +150,33 @@
     });
 
     const messagesEl = document.getElementById("assistant-messages");
+    const emptyStateEl = document.getElementById("assistant-empty-state");
     const form = document.getElementById("assistant-form");
     const input = document.getElementById("assistant-input");
+    const sendBtn = document.getElementById("assistant-send-btn");
     let conversation = [];
 
     function addMessage(role, text) {
+        if (emptyStateEl) { emptyStateEl.remove(); }
         const bubble = document.createElement("div");
         bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
         bubble.textContent = text;
         messagesEl.appendChild(bubble);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping() {
+        const typing = document.createElement("div");
+        typing.className = "cl-chat-typing";
+        typing.id = "assistant-typing";
+        typing.innerHTML = "<span></span><span></span><span></span>";
+        messagesEl.appendChild(typing);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+        const typing = document.getElementById("assistant-typing");
+        if (typing) typing.remove();
     }
 
     form.addEventListener("submit", async function (e) {
@@ -159,6 +187,8 @@
         addMessage("user", question);
         conversation.push({ role: "user", content: question });
         input.value = "";
+        sendBtn.disabled = true;
+        showTyping();
 
         try {
             const res = await fetch("/assistant/ask", {
@@ -167,6 +197,7 @@
                 body: JSON.stringify({ question: question, history: conversation, lesson_id: LESSON_ID }),
             });
             const data = await res.json();
+            hideTyping();
 
             if (!res.ok) {
                 addMessage("ai", data.error || "خطایی رخ داد.");
@@ -175,7 +206,10 @@
                 conversation.push({ role: "assistant", content: data.answer });
             }
         } catch (err) {
+            hideTyping();
             addMessage("ai", "ارتباط با سرور برقرار نشد.");
+        } finally {
+            sendBtn.disabled = false;
         }
     });
 })();

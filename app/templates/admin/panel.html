@@ -18,6 +18,20 @@
     </div>
 
     <div class="cl-card cl-admin-card">
+        <h1>وارد کردن هوشمند آموزش‌ها</h1>
+        <p class="cl-sub">
+            دروسی که خودت از قبل نوشته‌ای را در یک فایل JSON (فقط عنوان + متن هر درس، بدون مرحله/بخش) آپلود کن؛
+            هوش مصنوعی مرحله و نوع بخش هرکدام را تشخیص می‌دهد، خودت نتیجه را زیر همین کارت بازبینی/ویرایش می‌کنی و بعد تایید می‌کنی تا واقعاً ساخته شوند.
+        </p>
+        <div class="cl-admin-inline-form">
+            <button id="download-smart-import-template-btn" class="cl-btn cl-btn-sm cl-btn-outline">دانلود نمونه فایل</button>
+            <input type="file" id="smart-import-file" accept="application/json">
+            <button id="smart-import-classify-btn" class="cl-btn cl-btn-sm">+ آپلود و تشخیص خودکار</button>
+        </div>
+        <div id="smart-import-review" style="margin-top:18px;"></div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
         <h1>۱. ساخت محتوای آموزشی (کتابخانه‌ی مشترک)</h1>
         <p class="cl-sub">
             محتوا بر اساس «نوع بخش» ساخته می‌شود، نه بر اساس یک بیمارستان خاص.
@@ -722,6 +736,183 @@
                 }).join("");
         } catch (err) {
             globalSearchResults.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    // ---------- Smart import (AI placement of already-written lessons) ----------
+
+    let smartImportState = [];
+    let smartImportStageOptions = [];
+    let smartImportDeptOptions = [];
+
+    document.getElementById("download-smart-import-template-btn").addEventListener("click", async function () {
+        try {
+            const template = await api("/admin/content/smart-import/template");
+            const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "curalink-smart-import-template.json";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    function renderSmartImportReview() {
+        const container = document.getElementById("smart-import-review");
+        if (smartImportState.length === 0) { container.innerHTML = ""; return; }
+
+        const stageOptionsHtml = smartImportStageOptions.map(function (s) {
+            return `<option value="${s.code}">${escapeHtml(s.name)}</option>`;
+        }).join("");
+        const deptOptionsHtml = '<option value="">— عمومی (همه‌ی بخش‌ها) —</option>' +
+            smartImportDeptOptions.map(function (d) {
+                return `<option value="${d.code}">${escapeHtml(d.name)}</option>`;
+            }).join("");
+
+        let html = `<p class="cl-sub" style="margin-bottom:14px;">
+            ${smartImportState.length} درس تشخیص داده شد. مرحله و نوع بخش هرکدام را بازبینی کن؛ مواردی که مرحله‌شان قرمز است حتماً باید دستی انتخاب شوند.
+        </p>`;
+
+        smartImportState.forEach(function (item, idx) {
+            const errorNote = item.error ? `<p style="color:var(--warn); font-size:12px; margin:4px 0 0;">${escapeHtml(item.error)}</p>` : "";
+            html += `<div class="cl-admin-lesson-row" data-smart-idx="${idx}">
+                <div class="cl-admin-lesson-head">
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-smart-remove="${idx}" title="حذف از لیست">🗑</button>
+                </div>
+                ${errorNote}
+                <div class="cl-admin-row" style="margin-top:10px;">
+                    <div class="cl-field">
+                        <label>مرحله‌ی سفر بیمار</label>
+                        <select data-smart-stage="${idx}">
+                            <option value="">— انتخاب کنید —</option>
+                            ${stageOptionsHtml}
+                        </select>
+                    </div>
+                    <div class="cl-field">
+                        <label>نوع بخش</label>
+                        <select data-smart-dept="${idx}">${deptOptionsHtml}</select>
+                    </div>
+                </div>
+                <div class="cl-field">
+                    <label>برچسب (بخش آموزشی)</label>
+                    <input type="text" data-smart-section="${idx}" value="${escapeHtml(item.section_title)}">
+                </div>
+            </div>`;
+        });
+
+        container.innerHTML = html + `<button id="smart-import-commit-btn" class="cl-btn" style="margin-top:10px;">تایید و افزودن همه‌ی دروس</button>
+            <div id="smart-import-commit-result" style="margin-top:16px;"></div>`;
+
+        container.querySelectorAll("[data-smart-stage]").forEach(function (sel) {
+            const idx = parseInt(sel.dataset.smartStage, 10);
+            sel.value = smartImportState[idx].journey_stage_code || "";
+            sel.style.borderColor = sel.value ? "" : "var(--warn)";
+            sel.addEventListener("change", function () {
+                smartImportState[idx].journey_stage_code = sel.value || null;
+                sel.style.borderColor = sel.value ? "" : "var(--warn)";
+            });
+        });
+        container.querySelectorAll("[data-smart-dept]").forEach(function (sel) {
+            const idx = parseInt(sel.dataset.smartDept, 10);
+            sel.value = smartImportState[idx].department_type_code || "";
+            sel.addEventListener("change", function () { smartImportState[idx].department_type_code = sel.value || null; });
+        });
+        container.querySelectorAll("[data-smart-section]").forEach(function (input) {
+            const idx = parseInt(input.dataset.smartSection, 10);
+            input.addEventListener("input", function () { smartImportState[idx].section_title = input.value; });
+        });
+        container.querySelectorAll("[data-smart-remove]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                smartImportState.splice(parseInt(btn.dataset.smartRemove, 10), 1);
+                renderSmartImportReview();
+            });
+        });
+
+        document.getElementById("smart-import-commit-btn").addEventListener("click", commitSmartImport);
+    }
+
+    document.getElementById("smart-import-classify-btn").addEventListener("click", async function () {
+        const fileInput = document.getElementById("smart-import-file");
+        const file = fileInput.files[0];
+        if (!file) { AdminToast.error("یک فایل JSON انتخاب کنید."); return; }
+
+        const container = document.getElementById("smart-import-review");
+        container.innerHTML = '<p class="cl-admin-empty">در حال تشخیص با هوش مصنوعی... ممکن است کمی طول بکشد.</p>';
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const result = await api("/admin/content/smart-import/classify", { method: "POST", body: formData, isFormData: true });
+            smartImportStageOptions = result.stage_options;
+            smartImportDeptOptions = result.department_type_options;
+            smartImportState = result.items.map(function (item) {
+                return {
+                    title: item.title, body: item.body,
+                    journey_stage_code: item.journey_stage_code,
+                    department_type_code: item.department_type_code,
+                    section_title: item.section_title,
+                    error: item.error,
+                };
+            });
+            renderSmartImportReview();
+        } catch (err) {
+            container.innerHTML = "";
+            AdminToast.error(err.message);
+        }
+    });
+
+    async function commitSmartImport() {
+        const missingStage = smartImportState.some(function (item) { return !item.journey_stage_code; });
+        if (missingStage) { AdminToast.error("برای همه‌ی دروس باید مرحله انتخاب شود."); return; }
+
+        const container = document.getElementById("smart-import-review");
+        container.innerHTML = '<p class="cl-admin-empty">در حال ثبت...</p>';
+
+        try {
+            const payloadItems = smartImportState.map(function (item) {
+                return {
+                    title: item.title,
+                    body: item.body,
+                    journey_stage_code: item.journey_stage_code,
+                    department_type_code: item.department_type_code,
+                    section_title: item.section_title,
+                    is_published: true,
+                };
+            });
+
+            const summary = await api("/admin/content/smart-import/commit", {
+                method: "POST",
+                body: JSON.stringify({ items: payloadItems }),
+            });
+
+            let html = `<div class="cl-admin-mini-list">
+                <div class="cl-admin-mini-item">برچسب‌های ساخته‌شده: <strong>${summary.sections_created}</strong></div>
+                <div class="cl-admin-mini-item">برچسب‌های موجود (استفاده مجدد): <strong>${summary.sections_reused}</strong></div>
+                <div class="cl-admin-mini-item">درس‌های ساخته‌شده: <strong>${summary.lessons_created}</strong></div>
+                <div class="cl-admin-mini-item">درس‌های به‌روزرسانی‌شده: <strong>${summary.lessons_updated}</strong></div>
+            </div>`;
+
+            if (summary.errors.length > 0) {
+                html += `<p style="color:var(--warn); font-weight:700; margin:14px 0 8px;">خطاها:</p>
+                    <div class="cl-admin-mini-list">${summary.errors.map(function (e) { return `<div class="cl-admin-mini-item">${escapeHtml(e)}</div>`; }).join("")}</div>`;
+            }
+
+            container.innerHTML = html;
+            AdminToast.success("دروس با موفقیت اضافه شدند.");
+            smartImportState = [];
+            document.getElementById("smart-import-file").value = "";
+
+            if (state.stageId) { await loadSections(); }
+        } catch (err) {
+            container.innerHTML = "";
+            AdminToast.error(err.message);
         }
     }
 

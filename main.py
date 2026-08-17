@@ -20,6 +20,7 @@ from app.api.v1.entry import router as entry_router
 from app.api.v1.welcome import router as welcome_router
 from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.patient_home import router as patient_home_router
+from app.api.v1.patient_journey_page import router as patient_journey_page_router
 from app.api.v1.patient_lessons import router as patient_lessons_router
 from app.api.v1.patient_self_auth import router as patient_self_auth_router
 from app.api.v1.patient_profile import router as patient_profile_router
@@ -29,6 +30,7 @@ from app.api.v1.admin_users import router as admin_users_router
 from app.api.v1.admin_hospitals import router as admin_hospitals_router
 from app.api.v1.admin_qr import router as admin_qr_router
 from app.api.v1.admin_content import router as admin_content_router
+from app.api.v1.admin_smart_import import router as admin_smart_import_router
 from app.api.v1.admin_lesson_draft import router as admin_lesson_draft_router
 from app.api.v1.admin_media_upload import router as admin_media_upload_router
 from app.api.v1.admin_patient_report import router as admin_patient_report_router
@@ -53,10 +55,11 @@ os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 ALL_ROUTERS = [
-    entry_router, welcome_router, onboarding_router, patient_home_router,
+    entry_router, welcome_router, onboarding_router, patient_home_router, patient_journey_page_router,
     patient_lessons_router, patient_self_auth_router, patient_profile_router, assistant_router,
     admin_auth_router, admin_users_router,
-    admin_hospitals_router, admin_qr_router, admin_content_router, admin_lesson_draft_router,
+    admin_hospitals_router, admin_qr_router, admin_content_router, admin_smart_import_router,
+    admin_lesson_draft_router,
     admin_media_upload_router, admin_patient_report_router, admin_audit_log_router,
     admin_patient_journey_router, admin_followup_router, admin_analytics_router,
     admin_referrals_router, referrals_public_router, admin_panel_router,

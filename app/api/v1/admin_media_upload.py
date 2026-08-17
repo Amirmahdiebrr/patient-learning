@@ -17,31 +17,45 @@ router = APIRouter(prefix="/admin", tags=["admin_media_upload"])
 require_content_editor = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN, RoleCode.CONTENT_MANAGER))
 
 ALLOWED_EXTENSIONS = {
-    "image": {".jpg", ".jpeg", ".png", ".webp", ".gif"},
-    "video": {".mp4", ".webm", ".mov", ".ogg"},
+    "image": {
+        ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif",
+        ".heic", ".heif", ".avif", ".svg", ".jfif", ".ico",
+    },
+    "video": {".mp4", ".webm", ".mov", ".ogg", ".mkv", ".avi", ".m4v", ".3gp"},
     "pdf": {".pdf"},
-    "animation": {".gif", ".webp", ".mp4"},
+    "animation": {".gif", ".webp", ".mp4", ".apng"},
 }
 
 # Fixed-prefix signatures - checked with a simple startswith().
 _FIXED_MAGIC_BYTES = {
     ".jpg": b"\xff\xd8\xff",
     ".jpeg": b"\xff\xd8\xff",
+    ".jfif": b"\xff\xd8\xff",
     ".png": b"\x89PNG",
     ".gif": b"GIF8",
     ".pdf": b"%PDF",
     ".ogg": b"OggS",
     ".webm": b"\x1a\x45\xdf\xa3",  # EBML header (Matroska/WebM container)
+    ".mkv": b"\x1a\x45\xdf\xa3",
+    ".bmp": b"BM",
+    ".ico": b"\x00\x00\x01\x00",
 }
+
+# ISO-base-media-container formats: the actual type is signalled by a
+# 4-byte brand at offset 8, not by the first bytes - so all of these
+# just need bytes 4:8 to be "ftyp". Covers standard video containers
+# AND modern image containers like HEIC/HEIF/AVIF (iPhone photos).
+_FTYP_BASED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".3gp", ".heic", ".heif", ".avif"}
 
 
 def _content_matches_extension(ext: str, contents: bytes) -> bool:
     """
-    Validates the file's actual bytes against its declared extension.
-    Most formats have a fixed byte prefix (see _FIXED_MAGIC_BYTES);
-    webp and the ISO-base-media formats (mp4/mov) need a small offset
-    check instead of a plain prefix match, so they're handled here
-    explicitly rather than being silently skipped like before.
+    Validates the file's actual bytes against its declared extension
+    where a reliable signature exists. Formats without a simple fixed
+    signature (svg, tiff, and anything not explicitly listed) fall
+    through to `True` - the extension whitelist above is already the
+    real gatekeeper; this is just an extra check for the common cases
+    where a mismatch is easy to detect.
     """
     if ext in _FIXED_MAGIC_BYTES:
         return contents.startswith(_FIXED_MAGIC_BYTES[ext])
@@ -50,14 +64,15 @@ def _content_matches_extension(ext: str, contents: bytes) -> bool:
         # RIFF <4-byte size> WEBP
         return len(contents) >= 12 and contents[0:4] == b"RIFF" and contents[8:12] == b"WEBP"
 
-    if ext in (".mp4", ".mov"):
-        # ISO base media container: bytes 4-8 of the first box are "ftyp"
+    if ext in _FTYP_BASED_EXTENSIONS:
         return len(contents) >= 8 and contents[4:8] == b"ftyp"
 
-    # No known signature for this extension - extension whitelist
-    # above already restricts what can reach this point, so allow it
-    # rather than silently accepting (which the old code effectively
-    # did for every extension not covered here).
+    if ext in (".tiff", ".tif"):
+        return contents.startswith(b"II*\x00") or contents.startswith(b"MM\x00*")
+
+    # svg, apng, and any other extension without a simple fixed
+    # signature - the extension whitelist already restricts what can
+    # reach this point, so allow it through.
     return True
 
 

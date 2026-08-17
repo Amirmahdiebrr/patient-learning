@@ -1,0 +1,8 @@
+{# app/templates/patient_back_button.html #}
+<button type="button" class="cl-back-btn" onclick="
+    if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { window.history.back(); }
+    else { window.location.href = '/home'; }
+">
+    <span class="material-symbols-outlined cl-icon-sm">arrow_forward</span>
+    بازگشت
+</button>
