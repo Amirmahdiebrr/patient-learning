@@ -5,14 +5,24 @@ EducationSection CRUD. journey_stage/department_type/treatment
 existence checks live here so the route layer stays a thin
 validation+call wrapper. section_snapshot() is exported for the route
 to build AdminContentAction before/after payloads.
+
+delete_section() now cascades: deleting a section also deletes every
+lesson inside it (and, via ORM cascade on Lesson's relationships,
+their media_assets/quiz_questions/quiz_options/targeting_rules), after
+first clearing the non-cascaded FKs (favorite_records, progress_records,
+quiz_attempts, feedback_records) exactly like lesson_service.delete_lesson
+does for a single lesson.
 """
 
 import uuid
 
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import EducationSection, JourneyStage, StandardDepartmentType, Treatment
-from app.services.content_admin.errors import ContentNotFoundError, ContentConflictError
+from app.infrastructure.db.models import (
+    EducationSection, JourneyStage, StandardDepartmentType, Treatment,
+    Lesson, QuizQuestion, QuizAttempt, FavoriteRecord, ProgressRecord, FeedbackRecord,
+)
+from app.services.content_admin.errors import ContentNotFoundError
 
 
 def section_snapshot(section: EducationSection) -> dict:
@@ -125,16 +135,30 @@ def set_section_active(db: Session, section_id: uuid.UUID, is_active: bool) -> t
     return section, before
 
 
+def _delete_lesson_dependencies(db: Session, lesson: Lesson) -> None:
+    question_ids = [
+        row[0] for row in
+        db.query(QuizQuestion.id).filter(QuizQuestion.lesson_id == lesson.id).all()
+    ]
+    if question_ids:
+        db.query(QuizAttempt).filter(QuizAttempt.question_id.in_(question_ids)).delete(synchronize_session=False)
+
+    db.query(FavoriteRecord).filter(FavoriteRecord.lesson_id == lesson.id).delete(synchronize_session=False)
+    db.query(ProgressRecord).filter(ProgressRecord.lesson_id == lesson.id).delete(synchronize_session=False)
+    db.query(FeedbackRecord).filter(FeedbackRecord.lesson_id == lesson.id).update(
+        {FeedbackRecord.lesson_id: None}, synchronize_session=False
+    )
+
+
 def delete_section(db: Session, section_id: uuid.UUID) -> tuple[uuid.UUID, dict]:
     section = get_section_or_raise(db, section_id)
 
-    if section.lessons:
-        raise ContentConflictError(
-            "این بخش درس دارد؛ ابتدا درس‌های داخل آن را حذف کنید یا این بخش را غیرفعال کنید."
-        )
-
     before = section_snapshot(section)
     section_id_copy = section.id
+
+    for lesson in list(section.lessons):
+        _delete_lesson_dependencies(db, lesson)
+        db.delete(lesson)
 
     db.delete(section)
     db.commit()

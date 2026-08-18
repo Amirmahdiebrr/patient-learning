@@ -28,6 +28,8 @@ SAMPLE_TEMPLATE = {
         {
             "title": "در بدو ورود چه اتفاقی می‌افتد؟",
             "body": "متن کامل درسی که خودت نوشته‌ای اینجا قرار می‌گیرد...",
+            "stage_name": "پذیرش در بخش",
+            "department_name": "ارتوپدی",
             "quiz_questions": [
                 {
                     "question_text": "بعد از ورود به بخش، اول باید چه کاری انجام دهید؟",
@@ -42,10 +44,12 @@ SAMPLE_TEMPLATE = {
         {
             "title": "آماده‌سازی قبل از سزارین",
             "body": "متن کامل این درس...",
+            "stage_name": None,
+            "department_name": None,
             "quiz_questions": []
         }
     ],
-    "_help": "عنوان و متن هر درس را بنویس؛ مرحله و نوع بخش را خودت مشخص نکن - هوش مصنوعی آن را تشخیص می‌دهد. quiz_questions اختیاری است؛ دقیقاً یک گزینه‌ی هر سوال باید is_correct=true باشد."
+    "_help": "عنوان و متن هر درس را بنویس. اگر stage_name/department_name را دقیق بنویسی (مثلاً 'پذیرش در بخش' یا 'ارتوپدی')، سیستم مستقیم آن را تشخیص می‌دهد بدون نیاز به هوش مصنوعی؛ اگر خالی بگذاری، هوش مصنوعی از روی متن درس حدس می‌زند. quiz_questions اختیاری است؛ دقیقاً یک گزینه‌ی هر سوال باید is_correct=true باشد."
 }
 
 
@@ -76,7 +80,10 @@ async def classify_smart_import(
     except ValidationError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"ساختار فایل نامعتبر است: {exc.errors()[0]['msg']}")
 
-    lessons = [{"title": l.title, "body": l.body} for l in payload.lessons]
+    lessons = [
+        {"title": l.title, "body": l.body, "stage_name": l.stage_name, "department_name": l.department_name}
+        for l in payload.lessons
+    ]
     classifications = await classify_lessons(db, lessons)
 
     stages = db.query(JourneyStage).order_by(JourneyStage.display_order).all()
@@ -93,6 +100,7 @@ async def classify_smart_import(
             section_title=cls["section_title"],
             quiz_questions=raw_item.quiz_questions,
             error=cls["error"],
+            matched_by_name=cls["matched_by_name"],
         )
         for lesson, cls, raw_item in zip(lessons, classifications, payload.lessons)
     ]

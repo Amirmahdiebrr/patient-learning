@@ -4,9 +4,15 @@ app/services/content_admin/lesson_classifier_service.py
 Uses the AI provider to guess WHERE each patient-written lesson
 belongs (journey stage + standard department type + a short section
 label) based on its title/body - it never rewrites or generates the
-lesson content itself, only classifies placement. Admin reviews/edits
-the suggestions before anything is actually created (see
-admin_smart_import.py).
+lesson content itself, only classifies placement.
+
+If the admin explicitly supplies stage_name/department_name text for
+a lesson in the import file, that name is matched directly against
+JourneyStage.name / StandardDepartmentType.name (case-insensitive,
+substring match) BEFORE calling the AI - a confident name match skips
+AI guessing entirely for that field, so admin-supplied names always
+take priority over AI inference. Only lessons missing a confident
+name match for a field fall back to AI classification for that field.
 """
 
 import json
@@ -67,15 +73,44 @@ def _extract_json_array(raw_text: str) -> list:
     return json.loads(cleaned)
 
 
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def _match_stage_by_name(name: str | None, stages: list[JourneyStage]) -> str | None:
+    if not name:
+        return None
+    normalized = _normalize(name)
+    for stage in stages:
+        stage_name_normalized = _normalize(stage.name)
+        if normalized == stage_name_normalized or normalized in stage_name_normalized or stage_name_normalized in normalized:
+            return stage.code.value
+    return None
+
+
+def _match_department_by_name(name: str | None, department_types: list[StandardDepartmentType]) -> str | None:
+    if not name:
+        return None
+    normalized = _normalize(name)
+    for dept in department_types:
+        dept_name_normalized = _normalize(dept.name)
+        if normalized == dept_name_normalized or normalized in dept_name_normalized or dept_name_normalized in normalized:
+            return dept.code
+    return None
+
+
 async def classify_lessons(db: Session, lessons: list[dict]) -> list[dict]:
     """
-    lessons: [{"title": str, "body": str|None}, ...]
+    lessons: [{"title": str, "body": str|None, "stage_name": str|None,
+               "department_name": str|None}, ...]
     Returns one classification dict per input lesson, same order:
     {"journey_stage_code": str|None, "department_type_code": str|None,
-     "section_title": str, "error": str|None}
-    A per-item "error" is set (with a safe fallback) if the AI's
-    answer for that index was missing/malformed - the rest of the
-    batch is unaffected.
+     "section_title": str, "error": str|None, "matched_by_name": bool}
+
+    For each lesson, stage_name/department_name (if given) are matched
+    directly against DB names first. Only lessons still missing a
+    stage_code or department_code after name-matching are sent to the
+    AI, and only for the field(s) still missing.
     """
     if not lessons:
         return []
@@ -85,56 +120,81 @@ async def classify_lessons(db: Session, lessons: list[dict]) -> list[dict]:
         StandardDepartmentType.macro_category, StandardDepartmentType.display_order
     ).all()
 
-    stage_options = "\n".join(f"- {s.code.value}: {s.name}" for s in stages)
-    department_options = "\n".join(f"- {d.code}: {d.name}" for d in department_types)
-
-    prompt = CLASSIFY_SYSTEM_PROMPT.format(
-        stage_options=stage_options,
-        department_options=department_options,
-        lessons_block=_build_lessons_block(lessons),
-    )
-
-    try:
-        raw_response = await ask_ai(prompt)
-    except AIProviderError:
-        return [
-            {"journey_stage_code": None, "department_type_code": None, "section_title": l["title"], "error": "پاسخ هوش مصنوعی دریافت نشد."}
-            for l in lessons
-        ]
-
-    try:
-        parsed = _extract_json_array(raw_response)
-    except (json.JSONDecodeError, ValueError):
-        return [
-            {"journey_stage_code": None, "department_type_code": None, "section_title": l["title"], "error": "پاسخ هوش مصنوعی قابل تجزیه نبود."}
-            for l in lessons
-        ]
-
     valid_stage_codes = {s.code.value for s in stages}
     valid_dept_codes = {d.code for d in department_types}
 
+    # Pre-resolve everything possible via direct name matching.
+    name_matched_stage: list[str | None] = [_match_stage_by_name(l.get("stage_name"), stages) for l in lessons]
+    name_matched_dept: list[str | None] = [_match_department_by_name(l.get("department_name"), department_types) for l in lessons]
+
+    needs_ai_indices = [
+        i for i, lesson in enumerate(lessons)
+        if name_matched_stage[i] is None
+    ]
+
+    ai_results: dict[int, dict] = {}
+
+    if needs_ai_indices:
+        ai_lessons = [lessons[i] for i in needs_ai_indices]
+
+        stage_options = "\n".join(f"- {s.code.value}: {s.name}" for s in stages)
+        department_options = "\n".join(f"- {d.code}: {d.name}" for d in department_types)
+
+        prompt = CLASSIFY_SYSTEM_PROMPT.format(
+            stage_options=stage_options,
+            department_options=department_options,
+            lessons_block=_build_lessons_block(ai_lessons),
+        )
+
+        try:
+            raw_response = await ask_ai(prompt)
+            parsed = _extract_json_array(raw_response)
+        except AIProviderError:
+            parsed = None
+        except (json.JSONDecodeError, ValueError):
+            parsed = None
+
+        for pos, original_index in enumerate(needs_ai_indices):
+            if parsed is None:
+                ai_results[original_index] = {"error": "پاسخ هوش مصنوعی دریافت یا تجزیه نشد."}
+                continue
+            item = parsed[pos] if pos < len(parsed) and isinstance(parsed[pos], dict) else {}
+            ai_results[original_index] = {"raw": item}
+
     results = []
     for i, lesson in enumerate(lessons):
-        item = parsed[i] if i < len(parsed) and isinstance(parsed[i], dict) else {}
+        stage_code = name_matched_stage[i]
+        dept_code = name_matched_dept[i]
+        error = None
+        matched_by_name = stage_code is not None
 
-        stage_code = item.get("journey_stage_code")
-        if stage_code not in valid_stage_codes:
-            stage_code = None
-            error = "مرحله تشخیص داده نشد - لطفاً دستی انتخاب کنید."
-        else:
-            error = None
+        if stage_code is None:
+            ai_entry = ai_results.get(i, {})
+            if "error" in ai_entry:
+                error = ai_entry["error"]
+            else:
+                raw_item = ai_entry.get("raw", {})
+                candidate_stage = raw_item.get("journey_stage_code")
+                stage_code = candidate_stage if candidate_stage in valid_stage_codes else None
+                if stage_code is None:
+                    error = "مرحله تشخیص داده نشد - لطفاً دستی انتخاب کنید."
 
-        dept_code = item.get("department_type_code")
-        if dept_code not in valid_dept_codes:
-            dept_code = None
+                if dept_code is None:
+                    candidate_dept = raw_item.get("department_type_code")
+                    dept_code = candidate_dept if candidate_dept in valid_dept_codes else None
 
-        section_title = (item.get("section_title") or lesson["title"]).strip()[:255]
+        section_title = (lesson.get("department_name") or lesson.get("stage_name") or lesson["title"]).strip()[:255]
+        if not matched_by_name:
+            ai_entry = ai_results.get(i, {})
+            raw_item = ai_entry.get("raw", {})
+            section_title = (raw_item.get("section_title") or lesson["title"]).strip()[:255]
 
         results.append({
             "journey_stage_code": stage_code,
             "department_type_code": dept_code,
             "section_title": section_title,
             "error": error,
+            "matched_by_name": matched_by_name,
         })
 
     return results

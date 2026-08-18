@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}پایش آموزش بیماران | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+
+    <div class="cl-card cl-admin-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div>
+                <h1 style="margin-bottom:4px;">پایش آموزش بیماران</h1>
+                <p class="cl-sub" id="nurse-scope-line" style="margin:0;">—</p>
+            </div>
+            <button id="nurse-logout-btn" class="cl-btn cl-btn-sm cl-btn-outline">خروج</button>
+        </div>
+
+        <div class="cl-admin-inline-form" style="margin-top:20px;">
+            <input type="text" id="mon-search-input" placeholder="جستجوی نام بیمار...">
+            <label class="cl-admin-checkbox-label">
+                <input type="checkbox" id="mon-only-attention"> فقط بیماران نیازمند پیگیری
+            </label>
+            <button id="mon-search-btn" class="cl-btn cl-btn-sm">اعمال فیلتر</button>
+        </div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h2 class="cl-admin-h2" style="margin:0;">نتایج</h2>
+            <span id="mon-total-count" style="font-size:13px; color:#8CA0B3;"></span>
+        </div>
+        <div id="mon-table-wrap" class="cl-admin-table-wrap">
+            <p class="cl-admin-empty">در حال بارگذاری...</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function api(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        options.headers = Object.assign(
+            { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) {
+            window.location.href = "/nurse/login";
+            throw new Error("unauthorized");
+        }
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    const searchInput = document.getElementById("mon-search-input");
+    const onlyAttentionCheckbox = document.getElementById("mon-only-attention");
+    const tableWrap = document.getElementById("mon-table-wrap");
+    const totalCountEl = document.getElementById("mon-total-count");
+    const scopeLineEl = document.getElementById("nurse-scope-line");
+
+    function formatDate(iso) {
+        if (!iso) return "—";
+        try { return new Date(iso).toLocaleString("fa-IR"); } catch (e) { return iso; }
+    }
+
+    async function loadMe() {
+        const me = await api("/nurse/api/me");
+        scopeLineEl.textContent = me.department_name
+            ? `${me.hospital_name} — بخش ${me.department_name}`
+            : `${me.hospital_name} — کل بیمارستان`;
+    }
+
+    async function runReport() {
+        tableWrap.innerHTML = '<p class="cl-admin-empty">در حال بارگذاری...</p>';
+
+        let url = "/nurse/api/patient-monitoring?";
+        if (searchInput.value.trim()) url += `search=${encodeURIComponent(searchInput.value.trim())}&`;
+        if (onlyAttentionCheckbox.checked) url += `only_needs_attention=true&`;
+
+        try {
+            const result = await api(url);
+            totalCountEl.textContent = `${result.total} نتیجه`;
+
+            if (result.rows.length === 0) {
+                tableWrap.innerHTML = '<p class="cl-admin-empty">بیماری با این مشخصات پیدا نشد.</p>';
+                return;
+            }
+
+            let html = `<table class="cl-admin-table">
+                <thead>
+                    <tr>
+                        <th>نام</th>
+                        <th>بخش</th>
+                        <th>مرحله‌ی فعلی</th>
+                        <th>پیشرفت مرحله</th>
+                        <th>کل درس‌های تکمیل‌شده</th>
+                        <th>آزمون</th>
+                        <th>آخرین فعالیت</th>
+                        <th>وضعیت</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            result.rows.forEach(function (r) {
+                const statusBadge = r.needs_attention
+                    ? '<span class="cl-admin-badge" style="background:rgba(239,68,68,.15); color:var(--warn);">نیاز به پیگیری</span>'
+                    : '<span class="cl-admin-badge cl-admin-badge-live">عادی</span>';
+
+                const quizText = r.quiz_total > 0
+                    ? `${r.quiz_correct}/${r.quiz_total} (${r.quiz_success_percent}%)`
+                    : "بدون آزمون";
+
+                const activityText = r.days_inactive === null
+                    ? "—"
+                    : (r.days_inactive === 0 ? "امروز" : `${r.days_inactive} روز پیش`);
+
+                html += `<tr>
+                    <td>${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</td>
+                    <td>${escapeHtml(r.department_name)}</td>
+                    <td>${escapeHtml(r.current_stage_name)}${r.onboarding_completed ? "" : " (ثبت‌نام ناقص)"}</td>
+                    <td>${r.current_stage_lessons_completed}/${r.current_stage_lessons_total} (${r.current_stage_percent}%)</td>
+                    <td>${r.total_lessons_completed}</td>
+                    <td>${quizText}</td>
+                    <td title="${formatDate(r.last_activity_at)}">${activityText}</td>
+                    <td>${statusBadge}</td>
+                </tr>`;
+            });
+
+            html += "</tbody></table>";
+            tableWrap.innerHTML = html;
+        } catch (err) {
+            tableWrap.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    document.getElementById("mon-search-btn").addEventListener("click", runReport);
+    onlyAttentionCheckbox.addEventListener("change", runReport);
+    searchInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") runReport();
+    });
+
+    document.getElementById("nurse-logout-btn").addEventListener("click", async function () {
+        try { await fetch("/nurse/auth/logout", { method: "POST", credentials: "same-origin" }); }
+        finally { window.location.href = "/nurse/login"; }
+    });
+
+    (async function init() {
+        await loadMe();
+        await runReport();
+    })();
+})();
+</script>
+{% endblock %}

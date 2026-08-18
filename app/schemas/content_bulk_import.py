@@ -28,6 +28,8 @@ class RawQuizQuestionImportItem(BaseModel):
 class RawLessonImportItem(BaseModel):
     title: str = Field(min_length=2, max_length=255)
     body: str | None = None
+    stage_name: str | None = Field(default=None, max_length=255)
+    department_name: str | None = Field(default=None, max_length=255)
     quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
 
 
@@ -43,6 +45,7 @@ class ClassifiedLessonItem(BaseModel):
     section_title: str
     quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
     error: str | None = None
+    matched_by_name: bool = False
 
 
 class ClassifyResponse(BaseModel):

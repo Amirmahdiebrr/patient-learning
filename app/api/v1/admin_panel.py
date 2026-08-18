@@ -97,6 +97,11 @@ async def admin_patients_report_page(request: Request, db: Session = Depends(get
     return _render_admin_page(request, db, "admin/patients.html", "patients")
 
 
+@router.get("/nurse-approvals")
+async def admin_nurse_approvals_page(request: Request, db: Session = Depends(get_db)):
+    return _render_admin_page(request, db, "admin/nurse_approvals.html", "nurse_approvals")
+
+
 @router.get("/referrals")
 async def admin_referrals_page(request: Request, db: Session = Depends(get_db)):
     return _render_admin_page(request, db, "admin/referrals.html", "referrals")

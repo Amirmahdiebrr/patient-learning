@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}ورود پرستار | CuraLink{% endblock %}
+{% block content %}
+<div class="cl-container">
+    <div class="cl-card" style="max-width:420px;">
+        <h1>ورود کادر پرستاری</h1>
+        <p class="cl-sub">با کد ملی و رمز عبوری که هنگام ثبت‌نام تعیین کردید وارد شوید.</p>
+
+        <div class="cl-field">
+            <label for="national_id">کد ملی</label>
+            <input type="text" id="national_id" inputmode="numeric" maxlength="10">
+        </div>
+
+        <div class="cl-field">
+            <label for="password">رمز عبور</label>
+            <input type="password" id="password">
+        </div>
+
+        <p id="login-error" style="color:var(--warn); font-size:13.5px; display:none;"></p>
+
+        <button id="login-btn" class="cl-btn">ورود</button>
+
+        <p class="cl-sub" style="margin-top:18px; margin-bottom:0;">
+            حساب ندارید؟ <a href="/nurse/register" style="color:var(--accent); font-weight:700;">ثبت‌نام پرستار</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const btn = document.getElementById("login-btn");
+    const errorEl = document.getElementById("login-error");
+
+    btn.addEventListener("click", async function () {
+        const national_id = document.getElementById("national_id").value.trim();
+        const password = document.getElementById("password").value;
+        errorEl.style.display = "none";
+
+        try {
+            const res = await fetch("/nurse/auth/login", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ national_id, password }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                errorEl.textContent = data.detail || "ورود ناموفق بود.";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            window.location.href = "/nurse/dashboard";
+        } catch (err) {
+            errorEl.textContent = "ارتباط با سرور برقرار نشد.";
+            errorEl.style.display = "block";
+        }
+    });
+})();
+</script>
+{% endblock %}

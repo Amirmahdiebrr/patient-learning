@@ -441,7 +441,7 @@
         });
 
         block.querySelector('[data-action="delete-section"]').addEventListener("click", async function () {
-            const confirmed = await AdminModal.confirm("این برچسب حذف شود؟");
+            const confirmed = await AdminModal.confirm("این برچسب و همه‌ی درس‌های داخل آن حذف شوند؟");
             if (!confirmed) return;
             try {
                 await api(`/admin/education-sections/${section.id}`, { method: "DELETE" });
@@ -781,6 +781,7 @@
 
         smartImportState.forEach(function (item, idx) {
             const errorNote = item.error ? `<p style="color:var(--warn); font-size:12px; margin:4px 0 0;">${escapeHtml(item.error)}</p>` : "";
+            const matchedNote = item.matched_by_name ? `<p style="color:var(--success); font-size:12px; margin:4px 0 0;">✓ مرحله از روی نام دقیق تشخیص داده شد.</p>` : "";
             const quizCount = (item.quiz_questions || []).length;
             const quizNote = quizCount > 0
                 ? `<p style="color:var(--accent); font-size:12px; margin:6px 0 0;">${quizCount} سوال آزمون همراه این درس ثبت خواهد شد.</p>`
@@ -790,7 +791,7 @@
                     <strong>${escapeHtml(item.title)}</strong>
                     <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-smart-remove="${idx}" title="حذف از لیست">🗑</button>
                 </div>
-                ${errorNote}
+                ${errorNote}${matchedNote}
                 ${quizNote}
                 <div class="cl-admin-row" style="margin-top:10px;">
                     <div class="cl-field">

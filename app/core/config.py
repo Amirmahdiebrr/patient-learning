@@ -50,10 +50,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_BYTES: int = Field(default=32)
 
     # ==========================
-    # CSRF (double-submit cookie, patient forms + admin panel)
+    # CSRF (double-submit cookie, patient forms + admin panel + nurse panel)
     # ==========================
     CSRF_COOKIE_NAME: str = Field(default="curalink_csrf_token")
     ADMIN_CSRF_COOKIE_NAME: str = Field(default="curalink_admin_csrf_token")
+    NURSE_CSRF_COOKIE_NAME: str = Field(default="curalink_nurse_csrf_token")
     CSRF_HEADER_NAME: str = Field(default="X-CSRF-Token")
 
     # ==========================
@@ -77,6 +78,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 12)
     ADMIN_TOKEN_COOKIE_NAME: str = Field(default="curalink_admin_token")
+
+    # ==========================
+    # Nurse JWT Auth (separate portal from admin)
+    # ==========================
+    NURSE_TOKEN_COOKIE_NAME: str = Field(default="curalink_nurse_token")
 
     SESSION_SECRET_KEY: str = Field(default="")
 

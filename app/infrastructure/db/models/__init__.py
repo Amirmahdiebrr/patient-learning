@@ -20,6 +20,7 @@ from app.infrastructure.db.models.audit_log import AuditLog
 from app.infrastructure.db.models.followup import FollowUpTask, FollowUpChannel, FollowUpStatus
 from app.infrastructure.db.models.referral import PatientReferral, ReferralSource, ReferralStatus, HospitalApiKey
 from app.infrastructure.db.models.admin import AdminUser, Role, RoleCode, AdminRoleAssignment
+from app.infrastructure.db.models.nurse import NurseUser
 
 __all__ = [
     "Hospital", "Department", "QRAccessPoint", "QRAccessPointStatus",
@@ -32,4 +33,5 @@ __all__ = [
     "FollowUpTask", "FollowUpChannel", "FollowUpStatus",
     "PatientReferral", "ReferralSource", "ReferralStatus", "HospitalApiKey",
     "AdminUser", "Role", "RoleCode", "AdminRoleAssignment",
+    "NurseUser",
 ]

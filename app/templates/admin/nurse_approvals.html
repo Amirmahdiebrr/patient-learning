@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}تایید پرستاران | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card">
+        <h1>تایید پرستاران</h1>
+        <p class="cl-sub">درخواست‌های ثبت‌نام پرستاران این بیمارستان را بررسی و تایید کنید. تا زمان تایید، پرستار نمی‌تواند وارد پنل خود شود.</p>
+
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label>بیمارستان</label>
+                <select id="nurse-hospital-select"><option value="">— انتخاب کنید —</option></select>
+            </div>
+            <div class="cl-field">
+                <label class="cl-admin-checkbox-label" style="margin-top:28px;">
+                    <input type="checkbox" id="nurse-only-pending" checked> فقط درخواست‌های در انتظار تایید
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h2 class="cl-admin-h2" style="margin:0;">لیست پرستاران</h2>
+            <span id="nurse-total-count" style="font-size:13px; color:#8CA0B3;"></span>
+        </div>
+        <div id="nurse-list-wrap">
+            <p class="cl-admin-empty">ابتدا یک بیمارستان انتخاب کنید.</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function api(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        options.headers = Object.assign(
+            { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) {
+            window.location.href = "/admin/login";
+            throw new Error("unauthorized");
+        }
+        if (res.status === 204) return null;
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    function formatDate(iso) {
+        if (!iso) return "—";
+        try { return new Date(iso).toLocaleString("fa-IR"); } catch (e) { return iso; }
+    }
+
+    const hospitalSelect = document.getElementById("nurse-hospital-select");
+    const onlyPendingCheckbox = document.getElementById("nurse-only-pending");
+    const listWrap = document.getElementById("nurse-list-wrap");
+    const totalCountEl = document.getElementById("nurse-total-count");
+
+    async function loadHospitals() {
+        const hospitals = await api("/admin/my-hospitals");
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${escapeHtml(h.name)}</option>`; }).join("");
+    }
+
+    async function loadNurses() {
+        const hospitalId = hospitalSelect.value;
+        if (!hospitalId) {
+            listWrap.innerHTML = '<p class="cl-admin-empty">ابتدا یک بیمارستان انتخاب کنید.</p>';
+            totalCountEl.textContent = "";
+            return;
+        }
+
+        listWrap.innerHTML = '<p class="cl-admin-empty">در حال بارگذاری...</p>';
+
+        let url = `/admin/nurses?hospital_id=${hospitalId}`;
+        if (onlyPendingCheckbox.checked) url += `&only_pending=true`;
+
+        try {
+            const result = await api(url);
+            totalCountEl.textContent = `${result.total} نتیجه`;
+
+            if (result.rows.length === 0) {
+                listWrap.innerHTML = '<p class="cl-admin-empty">درخواستی پیدا نشد.</p>';
+                return;
+            }
+
+            listWrap.innerHTML = result.rows.map(function (n) {
+                const statusBadge = n.is_active
+                    ? '<span class="cl-admin-badge cl-admin-badge-live">تایید‌شده</span>'
+                    : '<span class="cl-admin-badge cl-admin-badge-draft">در انتظار تایید</span>';
+
+                const actions = n.is_active
+                    ? `<button class="cl-btn cl-btn-sm cl-btn-outline" data-deactivate="${n.id}">غیرفعال کردن</button>`
+                    : `<button class="cl-btn cl-btn-sm" data-approve="${n.id}">تایید</button>
+                       <button class="cl-btn cl-btn-sm cl-btn-outline" data-reject="${n.id}" style="color:var(--warn); border-color:var(--warn);">رد کردن</button>`;
+
+                return `<div class="cl-admin-lesson-row">
+                    <div class="cl-admin-lesson-head">
+                        <strong>${escapeHtml(n.full_name)}</strong>
+                        ${statusBadge}
+                        ${actions}
+                    </div>
+                    <p style="font-size:13px; color:var(--text); margin:10px 0 0;">
+                        <strong>ایمیل:</strong> ${escapeHtml(n.email)}<br>
+                        <strong>کد ملی:</strong> ${escapeHtml(n.national_id)}<br>
+                        <strong>کد نظام پرستاری:</strong> ${escapeHtml(n.nursing_license_number)}<br>
+                        <strong>بخش:</strong> ${escapeHtml(n.department_name || "کل بیمارستان")}<br>
+                        <strong>تاریخ درخواست:</strong> ${formatDate(n.created_at)}
+                    </p>
+                </div>`;
+            }).join("");
+
+            listWrap.querySelectorAll("[data-approve]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    try {
+                        await api(`/admin/nurses/${btn.dataset.approve}/approve`, { method: "POST" });
+                        AdminToast.success("پرستار تایید شد.");
+                        await loadNurses();
+                    } catch (err) {
+                        AdminToast.error(err.message);
+                    }
+                });
+            });
+
+            listWrap.querySelectorAll("[data-reject]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    const confirmed = await AdminModal.confirm("این درخواست رد و حذف شود؟");
+                    if (!confirmed) return;
+                    try {
+                        await api(`/admin/nurses/${btn.dataset.reject}/reject`, { method: "POST" });
+                        AdminToast.success("درخواست رد شد.");
+                        await loadNurses();
+                    } catch (err) {
+                        AdminToast.error(err.message);
+                    }
+                });
+            });
+
+            listWrap.querySelectorAll("[data-deactivate]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    const confirmed = await AdminModal.confirm("دسترسی این پرستار غیرفعال شود؟");
+                    if (!confirmed) return;
+                    try {
+                        await api(`/admin/nurses/${btn.dataset.deactivate}/deactivate`, { method: "POST" });
+                        AdminToast.success("دسترسی پرستار غیرفعال شد.");
+                        await loadNurses();
+                    } catch (err) {
+                        AdminToast.error(err.message);
+                    }
+                });
+            });
+        } catch (err) {
+            listWrap.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    hospitalSelect.addEventListener("change", loadNurses);
+    onlyPendingCheckbox.addEventListener("change", loadNurses);
+
+    (async function init() {
+        await loadHospitals();
+    })();
+})();
+</script>
+{% endblock %}

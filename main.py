@@ -39,8 +39,11 @@ from app.api.v1.admin_patient_journey import router as admin_patient_journey_rou
 from app.api.v1.admin_followup import router as admin_followup_router
 from app.api.v1.admin_analytics import router as admin_analytics_router
 from app.api.v1.admin_referrals import router as admin_referrals_router
+from app.api.v1.admin_nurses import router as admin_nurses_router
 from app.api.v1.referrals_public import router as referrals_public_router
 from app.api.v1.admin_panel import router as admin_panel_router
+from app.api.v1.nurse_auth import router as nurse_auth_router
+from app.api.v1.nurse_dashboard import router as nurse_dashboard_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -62,7 +65,8 @@ ALL_ROUTERS = [
     admin_lesson_draft_router,
     admin_media_upload_router, admin_patient_report_router, admin_audit_log_router,
     admin_patient_journey_router, admin_followup_router, admin_analytics_router,
-    admin_referrals_router, referrals_public_router, admin_panel_router,
+    admin_referrals_router, admin_nurses_router, referrals_public_router, admin_panel_router,
+    nurse_auth_router, nurse_dashboard_router,
 ]
 
 for router in ALL_ROUTERS:
