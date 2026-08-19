@@ -34,6 +34,21 @@
     </div>
 
     <div class="cl-card cl-admin-card">
+        <h1>وارد کردن هوشمند فهرست اعمال (Procedures)</h1>
+        <p class="cl-sub">
+            یک فایل JSON شامل نام اعمال جراحی/پروسیجرها آپلود کن (اختیاری: نام بخش هر کدام).
+            اگر department_name را دقیق بنویسی، سیستم مستقیم آن را تشخیص می‌دهد؛ در غیر این صورت هوش مصنوعی
+            بر اساس نام عمل حدس می‌زند و باید در مرحله‌ی بازبینی تایید یا اصلاح شود.
+        </p>
+        <div class="cl-admin-inline-form">
+            <button id="download-procedure-import-template-btn" class="cl-btn cl-btn-sm cl-btn-outline">دانلود نمونه فایل</button>
+            <input type="file" id="procedure-import-file" accept="application/json">
+            <button id="procedure-import-classify-btn" class="cl-btn cl-btn-sm">+ آپلود و تشخیص خودکار</button>
+        </div>
+        <div id="procedure-import-review" style="margin-top:18px;"></div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
         <h1>۱. ساخت محتوای آموزشی (کتابخانه‌ی مشترک)</h1>
         <p class="cl-sub">
             محتوا بر اساس «نوع بخش» ساخته می‌شود، نه بر اساس یک بیمارستان خاص.
@@ -989,6 +1004,150 @@
             document.getElementById("smart-import-file").value = "";
 
             if (state.stageId) { await loadSections(); }
+        } catch (err) {
+            container.innerHTML = "";
+            AdminToast.error(err.message);
+        }
+    }
+
+    // ---------- Procedure smart import (AI placement of procedure names into department types) ----------
+
+    let procedureImportState = [];
+    let procedureImportDeptOptions = [];
+
+    document.getElementById("download-procedure-import-template-btn").addEventListener("click", async function () {
+        try {
+            const template = await api("/admin/procedures/smart-import/template");
+            const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "curalink-procedure-import-template.json";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    function renderProcedureImportReview() {
+        const container = document.getElementById("procedure-import-review");
+        if (procedureImportState.length === 0) { container.innerHTML = ""; return; }
+
+        const deptOptionsHtml = '<option value="">— انتخاب کنید —</option>' +
+            procedureImportDeptOptions.map(function (d) {
+                return `<option value="${d.code}">${escapeHtml(d.name)}</option>`;
+            }).join("");
+
+        let html = `<p class="cl-sub" style="margin-bottom:14px;">
+            ${procedureImportState.length} عمل تشخیص داده شد. نوع بخش هرکدام را بازبینی کن؛ مواردی که قرمز هستند حتماً باید دستی انتخاب شوند.
+        </p>`;
+
+        procedureImportState.forEach(function (item, idx) {
+            const errorNote = item.error ? `<p style="color:var(--warn); font-size:12px; margin:4px 0 0;">${escapeHtml(item.error)}</p>` : "";
+            const matchedNote = item.matched_by_name ? `<p style="color:var(--success); font-size:12px; margin:4px 0 0;">✓ بخش از روی نام دقیق تشخیص داده شد.</p>` : "";
+
+            html += `<div class="cl-admin-lesson-row" data-proc-idx="${idx}">
+                <div class="cl-admin-lesson-head">
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-proc-remove="${idx}" title="حذف از لیست">🗑</button>
+                </div>
+                ${errorNote}${matchedNote}
+                <div class="cl-field" style="margin-top:10px;">
+                    <label>نوع بخش</label>
+                    <select data-proc-dept="${idx}">${deptOptionsHtml}</select>
+                </div>
+            </div>`;
+        });
+
+        container.innerHTML = html + `<button id="procedure-import-commit-btn" class="cl-btn" style="margin-top:10px;">تایید و افزودن همه‌ی اعمال</button>
+            <div id="procedure-import-commit-result" style="margin-top:16px;"></div>`;
+
+        container.querySelectorAll("[data-proc-dept]").forEach(function (sel) {
+            const idx = parseInt(sel.dataset.procDept, 10);
+            sel.value = procedureImportState[idx].department_type_code || "";
+            sel.style.borderColor = sel.value ? "" : "var(--warn)";
+            sel.addEventListener("change", function () {
+                procedureImportState[idx].department_type_code = sel.value || null;
+                sel.style.borderColor = sel.value ? "" : "var(--warn)";
+            });
+        });
+        container.querySelectorAll("[data-proc-remove]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                procedureImportState.splice(parseInt(btn.dataset.procRemove, 10), 1);
+                renderProcedureImportReview();
+            });
+        });
+
+        document.getElementById("procedure-import-commit-btn").addEventListener("click", commitProcedureImport);
+    }
+
+    document.getElementById("procedure-import-classify-btn").addEventListener("click", async function () {
+        const fileInput = document.getElementById("procedure-import-file");
+        const file = fileInput.files[0];
+        if (!file) { AdminToast.error("یک فایل JSON انتخاب کنید."); return; }
+
+        const container = document.getElementById("procedure-import-review");
+        container.innerHTML = '<p class="cl-admin-empty">در حال تشخیص با هوش مصنوعی... ممکن است کمی طول بکشد.</p>';
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const result = await api("/admin/procedures/smart-import/classify", { method: "POST", body: formData, isFormData: true });
+            procedureImportDeptOptions = result.department_type_options;
+            procedureImportState = result.items.map(function (item) {
+                return {
+                    name: item.name,
+                    department_type_code: item.department_type_code,
+                    matched_by_name: item.matched_by_name,
+                    error: item.error,
+                };
+            });
+            renderProcedureImportReview();
+        } catch (err) {
+            container.innerHTML = "";
+            AdminToast.error(err.message);
+        }
+    });
+
+    async function commitProcedureImport() {
+        const missingDept = procedureImportState.some(function (item) { return !item.department_type_code; });
+        if (missingDept) { AdminToast.error("برای همه‌ی اعمال باید نوع بخش انتخاب شود."); return; }
+
+        const container = document.getElementById("procedure-import-review");
+        container.innerHTML = '<p class="cl-admin-empty">در حال ثبت...</p>';
+
+        try {
+            const payloadItems = procedureImportState.map(function (item) {
+                return { name: item.name, department_type_code: item.department_type_code };
+            });
+
+            const summary = await api("/admin/procedures/smart-import/commit", {
+                method: "POST",
+                body: JSON.stringify({ items: payloadItems }),
+            });
+
+            let html = `<div class="cl-admin-mini-list">
+                <div class="cl-admin-mini-item">اعمال ساخته‌شده: <strong>${summary.procedures_created}</strong></div>
+                <div class="cl-admin-mini-item">اعمال به‌روزرسانی‌شده: <strong>${summary.procedures_updated}</strong></div>
+            </div>`;
+
+            if (summary.errors.length > 0) {
+                html += `<p style="color:var(--warn); font-weight:700; margin:14px 0 8px;">خطاها:</p>
+                    <div class="cl-admin-mini-list">${summary.errors.map(function (e) { return `<div class="cl-admin-mini-item">${escapeHtml(e)}</div>`; }).join("")}</div>`;
+            }
+
+            container.innerHTML = html;
+            AdminToast.success("اعمال با موفقیت اضافه شدند.");
+            procedureImportState = [];
+            document.getElementById("procedure-import-file").value = "";
+
+            if (state.contentDepartmentTypeId && state.contentDepartmentTypeId !== "general") {
+                await loadProcedures(state.contentDepartmentTypeId, state.procedureId);
+            }
         } catch (err) {
             container.innerHTML = "";
             AdminToast.error(err.message);
