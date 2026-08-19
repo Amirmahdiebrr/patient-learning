@@ -1,10 +1,11 @@
+# app/services/content_admin/smart_import_commit_service.py
 """
 app/services/content_admin/smart_import_commit_service.py
 """
 
 from app.core.sanitize import sanitize_html
 from app.infrastructure.db.models import (
-    JourneyStage, JourneyStageCode, StandardDepartmentType,
+    JourneyStage, JourneyStageCode, StandardDepartmentType, Procedure,
     EducationSection, Lesson, LessonOverrideLevel,
     QuizQuestion, QuizOption, QuizAttempt,
 )
@@ -26,12 +27,23 @@ def _resolve_department_type(db, code: str | None):
     return dept_type, dept_type is not None
 
 
-def _find_or_create_section(db, journey_stage: JourneyStage, department_type_id, title: str):
+def _resolve_procedure(db, department_type_id, code: str | None) -> Procedure | None:
+    if not code or not department_type_id:
+        return None
+    return (
+        db.query(Procedure)
+        .filter(Procedure.department_type_id == department_type_id, Procedure.slug == code.strip())
+        .first()
+    )
+
+
+def _find_or_create_section(db, journey_stage: JourneyStage, department_type_id, procedure_id, title: str):
     existing = (
         db.query(EducationSection)
         .filter(
             EducationSection.journey_stage_id == journey_stage.id,
             EducationSection.department_type_id == department_type_id,
+            EducationSection.procedure_id == procedure_id,
             EducationSection.title == title,
         )
         .first()
@@ -42,6 +54,7 @@ def _find_or_create_section(db, journey_stage: JourneyStage, department_type_id,
     section = EducationSection(
         journey_stage_id=journey_stage.id,
         department_type_id=department_type_id,
+        procedure_id=procedure_id,
         title=title,
         display_order=0,
     )
@@ -131,8 +144,13 @@ def run_smart_import_commit(db, payload: SmartImportCommitPayload) -> dict:
             summary["errors"].append(f"درس «{item.title}»: نوع بخش پیدا نشد.")
             continue
 
+        procedure = _resolve_procedure(db, dept_type.id if dept_type else None, item.procedure_code)
+        if item.procedure_code and not procedure:
+            summary["errors"].append(f"درس «{item.title}»: عمل/پروسیجر «{item.procedure_code}» پیدا نشد - به‌صورت عمومی ثبت شد.")
+
         section, section_created = _find_or_create_section(
-            db, journey_stage, dept_type.id if dept_type else None, item.section_title,
+            db, journey_stage, dept_type.id if dept_type else None,
+            procedure.id if procedure else None, item.section_title,
         )
         summary["sections_created" if section_created else "sections_reused"] += 1
 

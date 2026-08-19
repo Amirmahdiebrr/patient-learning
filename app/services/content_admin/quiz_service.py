@@ -1,11 +1,13 @@
+# app/services/content_admin/quiz_service.py
 """
 app/services/content_admin/quiz_service.py
 
 QuizQuestion CRUD - a question targets EITHER a single Lesson OR an
-entire JourneyStage (optionally scoped to one department type); the
-exclusivity rule itself is enforced at the schema layer
-(QuizQuestionCreateRequest's model_validator), so this service only
-checks that whichever id(s) were actually given point at real rows.
+entire JourneyStage (optionally scoped to one department type and,
+within that, one procedure); the exclusivity rule itself is enforced
+at the schema layer (QuizQuestionCreateRequest's model_validator), so
+this service only checks that whichever id(s) were actually given
+point at real, consistent rows.
 """
 
 import uuid
@@ -15,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.infrastructure.db.models import QuizQuestion, QuizOption, Lesson, JourneyStage, StandardDepartmentType
 from app.schemas.content_admin import QuizOptionCreateRequest
 from app.services.content_admin.errors import ContentNotFoundError
+from app.services.content_admin.procedure_service import validate_procedure_matches_department
 
 
 def create_quiz_question(
@@ -26,6 +29,7 @@ def create_quiz_question(
     question_image_url: str | None,
     display_order: int,
     options: list[QuizOptionCreateRequest],
+    procedure_id: uuid.UUID | None = None,
 ) -> QuizQuestion:
     if lesson_id and not db.query(Lesson).filter(Lesson.id == lesson_id).first():
         raise ContentNotFoundError("درس پیدا نشد.")
@@ -38,10 +42,13 @@ def create_quiz_question(
     ).first():
         raise ContentNotFoundError("نوع بخش استاندارد پیدا نشد.")
 
+    validate_procedure_matches_department(db, procedure_id, department_type_id)
+
     question = QuizQuestion(
         lesson_id=lesson_id,
         journey_stage_id=journey_stage_id,
         department_type_id=department_type_id,
+        procedure_id=procedure_id,
         question_text=question_text,
         question_image_url=question_image_url,
         display_order=display_order,
@@ -75,12 +82,19 @@ def list_lesson_quiz_questions(db: Session, lesson_id: uuid.UUID) -> list[QuizQu
 def list_stage_quiz_questions(
     db: Session, journey_stage_id: uuid.UUID,
     department_type_id: uuid.UUID | None, department_type_is_general: bool,
+    procedure_id: uuid.UUID | None = None,
 ) -> list[QuizQuestion]:
     query = db.query(QuizQuestion).filter(QuizQuestion.journey_stage_id == journey_stage_id)
     if department_type_is_general:
         query = query.filter(QuizQuestion.department_type_id.is_(None))
     elif department_type_id:
         query = query.filter(QuizQuestion.department_type_id == department_type_id)
+
+    if procedure_id:
+        query = query.filter(QuizQuestion.procedure_id == procedure_id)
+    else:
+        query = query.filter(QuizQuestion.procedure_id.is_(None))
+
     return query.order_by(QuizQuestion.display_order).all()
 
 

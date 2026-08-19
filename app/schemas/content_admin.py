@@ -1,9 +1,10 @@
+# app/schemas/content_admin.py
 """
 app/schemas/content_admin.py
 
 Pydantic v2 DTOs for admin content management, including hospital
-override lessons and quiz questions (lesson-scoped OR stage-scoped,
-with flexible option counts and optional images).
+override lessons, procedures, and quiz questions (lesson-scoped OR
+stage-scoped, with flexible option counts and optional images).
 """
 
 import uuid
@@ -56,9 +57,35 @@ class JourneyStageResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ---- Procedure ----
+
+class ProcedureCreateRequest(BaseModel):
+    department_type_id: uuid.UUID
+    name: str = Field(min_length=2, max_length=255)
+    display_order: int = 0
+
+
+class ProcedureUpdateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    is_active: bool = True
+    display_order: int = 0
+
+
+class ProcedureResponse(BaseModel):
+    id: uuid.UUID
+    department_type_id: uuid.UUID
+    name: str
+    slug: str
+    is_active: bool
+    display_order: int
+
+    model_config = {"from_attributes": True}
+
+
 class EducationSectionCreateRequest(BaseModel):
     journey_stage_id: uuid.UUID
     department_type_id: uuid.UUID | None = None
+    procedure_id: uuid.UUID | None = None
     treatment_id: uuid.UUID | None = None
     title: str = Field(min_length=2, max_length=255)
     display_order: int = 0
@@ -67,6 +94,7 @@ class EducationSectionCreateRequest(BaseModel):
 class EducationSectionUpdateRequest(BaseModel):
     journey_stage_id: uuid.UUID
     department_type_id: uuid.UUID | None = None
+    procedure_id: uuid.UUID | None = None
     treatment_id: uuid.UUID | None = None
     title: str = Field(min_length=2, max_length=255)
 
@@ -76,6 +104,8 @@ class EducationSectionResponse(BaseModel):
     journey_stage_id: uuid.UUID
     department_type_id: uuid.UUID | None
     department_type_name: str | None
+    procedure_id: uuid.UUID | None
+    procedure_name: str | None
     treatment_id: uuid.UUID | None
     title: str
     display_order: int
@@ -189,6 +219,7 @@ class QuizQuestionCreateRequest(BaseModel):
     lesson_id: uuid.UUID | None = None
     journey_stage_id: uuid.UUID | None = None
     department_type_id: uuid.UUID | None = None
+    procedure_id: uuid.UUID | None = None
     question_text: str = Field(min_length=2)
     question_image_url: str | None = None
     display_order: int = 0
@@ -208,6 +239,10 @@ class QuizQuestionCreateRequest(BaseModel):
             raise ValueError("باید دقیقاً یکی از lesson_id (سوال درسی) یا journey_stage_id (سوال مرحله‌ای) مشخص شود.")
         if self.department_type_id and not self.journey_stage_id:
             raise ValueError("department_type_id فقط برای سوالات مرحله‌ای معنا دارد.")
+        if self.procedure_id and not self.journey_stage_id:
+            raise ValueError("procedure_id فقط برای سوالات مرحله‌ای معنا دارد.")
+        if self.procedure_id and not self.department_type_id:
+            raise ValueError("انتخاب عمل فقط همراه با انتخاب نوع بخش ممکن است.")
         return self
 
 
@@ -218,6 +253,8 @@ class QuizQuestionResponse(BaseModel):
     journey_stage_name: str | None = None
     department_type_id: uuid.UUID | None
     department_type_name: str | None = None
+    procedure_id: uuid.UUID | None = None
+    procedure_name: str | None = None
     question_text: str
     question_image_url: str | None
     display_order: int

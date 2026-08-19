@@ -1,3 +1,4 @@
+# app/api/v1/admin_smart_import.py
 """
 app/api/v1/admin_smart_import.py
 """
@@ -10,7 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
-from app.infrastructure.db.models import AdminUser, RoleCode, JourneyStage, StandardDepartmentType
+from app.infrastructure.db.models import AdminUser, RoleCode, JourneyStage, StandardDepartmentType, Procedure
 from app.api.deps_admin import ScopeCheck
 from app.schemas.content_bulk_import import (
     RawLessonImportPayload, ClassifyResponse, ClassifiedLessonItem,
@@ -30,6 +31,7 @@ SAMPLE_TEMPLATE = {
             "body": "متن کامل درسی که خودت نوشته‌ای اینجا قرار می‌گیرد...",
             "stage_name": "پذیرش در بخش",
             "department_name": "ارتوپدی",
+            "procedure_name": None,
             "quiz_questions": [
                 {
                     "question_text": "بعد از ورود به بخش، اول باید چه کاری انجام دهید؟",
@@ -42,14 +44,15 @@ SAMPLE_TEMPLATE = {
             ]
         },
         {
-            "title": "آماده‌سازی قبل از سزارین",
+            "title": "آمادگی قبل از تعویض مفصل کامل زانو",
             "body": "متن کامل این درس...",
-            "stage_name": None,
-            "department_name": None,
+            "stage_name": "قبل از عمل",
+            "department_name": "ارتوپدی",
+            "procedure_name": "تعویض مفصل کامل زانو",
             "quiz_questions": []
         }
     ],
-    "_help": "عنوان و متن هر درس را بنویس. اگر stage_name/department_name را دقیق بنویسی (مثلاً 'پذیرش در بخش' یا 'ارتوپدی')، سیستم مستقیم آن را تشخیص می‌دهد بدون نیاز به هوش مصنوعی؛ اگر خالی بگذاری، هوش مصنوعی از روی متن درس حدس می‌زند. quiz_questions اختیاری است؛ دقیقاً یک گزینه‌ی هر سوال باید is_correct=true باشد."
+    "_help": "عنوان و متن هر درس را بنویس. اگر stage_name/department_name را دقیق بنویسی، سیستم مستقیم آن را تشخیص می‌دهد. procedure_name اختیاری است و باید دقیقاً نام یکی از اعمال ثبت‌شده‌ی همان بخش باشد؛ اگر خالی بماند، درس عمومی (department-general) در نظر گرفته می‌شود. procedure_name هرگز توسط هوش مصنوعی حدس زده نمی‌شود."
 }
 
 
@@ -81,13 +84,18 @@ async def classify_smart_import(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"ساختار فایل نامعتبر است: {exc.errors()[0]['msg']}")
 
     lessons = [
-        {"title": l.title, "body": l.body, "stage_name": l.stage_name, "department_name": l.department_name}
+        {
+            "title": l.title, "body": l.body, "stage_name": l.stage_name,
+            "department_name": l.department_name, "procedure_name": l.procedure_name,
+        }
         for l in payload.lessons
     ]
     classifications = await classify_lessons(db, lessons)
 
     stages = db.query(JourneyStage).order_by(JourneyStage.display_order).all()
-    department_types = db.query(StandardDepartmentType).order_by(
+    department_types = db.query(StandardDepartmentType).filter(
+        StandardDepartmentType.is_active.is_(True)
+    ).order_by(
         StandardDepartmentType.macro_category, StandardDepartmentType.display_order
     ).all()
 
@@ -97,6 +105,7 @@ async def classify_smart_import(
             body=lesson["body"],
             journey_stage_code=cls["journey_stage_code"],
             department_type_code=cls["department_type_code"],
+            procedure_code=cls["procedure_code"],
             section_title=cls["section_title"],
             quiz_questions=raw_item.quiz_questions,
             error=cls["error"],

@@ -38,9 +38,11 @@ class StandardDepartmentType(Base):
     code = Column(String(100), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     display_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, default=True, nullable=False)
 
     departments = relationship("Department", back_populates="department_type")
     education_sections = relationship("EducationSection", back_populates="department_type")
+    procedures = relationship("Procedure", back_populates="department_type")
 
 
 class Hospital(Base):
@@ -51,7 +53,6 @@ class Hospital(Base):
     slug = Column(String(255), unique=True, nullable=False, index=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
-    # اطلاعات ثبت‌نام / تماس بیمارستان و مسئول آن - برای بررسی ادمین قبل از تایید
     address = Column(String(500), nullable=True)
     phone_number = Column(String(20), nullable=True)
     responsible_phone = Column(String(20), nullable=True)

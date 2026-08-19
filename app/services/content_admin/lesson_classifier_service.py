@@ -1,18 +1,19 @@
+# app/services/content_admin/lesson_classifier_service.py
 """
 app/services/content_admin/lesson_classifier_service.py
 
 Uses the AI provider to guess WHERE each patient-written lesson
 belongs (journey stage + standard department type + a short section
-label) based on its title/body - it never rewrites or generates the
-lesson content itself, only classifies placement.
+label). Procedure resolution is NEVER guessed by AI - it is only
+assigned via a direct, deterministic name match against the
+Procedure catalog of the already-resolved department, exactly as the
+instructions require (no hallucinated procedure assignment).
 
 If the admin explicitly supplies stage_name/department_name text for
-a lesson in the import file, that name is matched directly against
-JourneyStage.name / StandardDepartmentType.name (case-insensitive,
-substring match) BEFORE calling the AI - a confident name match skips
-AI guessing entirely for that field, so admin-supplied names always
-take priority over AI inference. Only lessons missing a confident
-name match for a field fall back to AI classification for that field.
+a lesson, that name is matched directly against JourneyStage.name /
+StandardDepartmentType.name BEFORE calling the AI. Only lessons
+missing a confident name match for a field fall back to AI
+classification for that field.
 """
 
 import json
@@ -20,7 +21,7 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import JourneyStage, StandardDepartmentType
+from app.infrastructure.db.models import JourneyStage, StandardDepartmentType, Procedure
 from app.infrastructure.external.ai_provider import ask_ai, AIProviderError
 
 MAX_BODY_CHARS_FOR_CLASSIFICATION = 500
@@ -99,38 +100,54 @@ def _match_department_by_name(name: str | None, department_types: list[StandardD
     return None
 
 
+def _match_procedure_by_name(db: Session, department_type_id, name: str | None) -> str | None:
+    """
+    Direct, deterministic name match only - never AI-assisted. A
+    procedure that isn't matched simply stays unassigned (the lesson
+    remains department-general); it is never guessed from lesson body.
+    """
+    if not name or not department_type_id:
+        return None
+    normalized = _normalize(name)
+    procedures = (
+        db.query(Procedure)
+        .filter(Procedure.department_type_id == department_type_id, Procedure.is_active.is_(True))
+        .all()
+    )
+    for procedure in procedures:
+        proc_name_normalized = _normalize(procedure.name)
+        if normalized == proc_name_normalized or normalized in proc_name_normalized or proc_name_normalized in normalized:
+            return procedure.slug
+    return None
+
+
 async def classify_lessons(db: Session, lessons: list[dict]) -> list[dict]:
     """
     lessons: [{"title": str, "body": str|None, "stage_name": str|None,
-               "department_name": str|None}, ...]
+               "department_name": str|None, "procedure_name": str|None}, ...]
     Returns one classification dict per input lesson, same order:
     {"journey_stage_code": str|None, "department_type_code": str|None,
-     "section_title": str, "error": str|None, "matched_by_name": bool}
-
-    For each lesson, stage_name/department_name (if given) are matched
-    directly against DB names first. Only lessons still missing a
-    stage_code or department_code after name-matching are sent to the
-    AI, and only for the field(s) still missing.
+     "procedure_code": str|None, "section_title": str, "error": str|None,
+     "matched_by_name": bool}
     """
     if not lessons:
         return []
 
     stages = db.query(JourneyStage).order_by(JourneyStage.display_order).all()
-    department_types = db.query(StandardDepartmentType).order_by(
+    department_types = db.query(StandardDepartmentType).filter(
+        StandardDepartmentType.is_active.is_(True)
+    ).order_by(
         StandardDepartmentType.macro_category, StandardDepartmentType.display_order
     ).all()
 
     valid_stage_codes = {s.code.value for s in stages}
     valid_dept_codes = {d.code for d in department_types}
+    dept_by_code = {d.code: d for d in department_types}
 
-    # Pre-resolve everything possible via direct name matching.
     name_matched_stage: list[str | None] = [_match_stage_by_name(l.get("stage_name"), stages) for l in lessons]
     name_matched_dept: list[str | None] = [_match_department_by_name(l.get("department_name"), department_types) for l in lessons]
 
-    needs_ai_indices = [
-        i for i, lesson in enumerate(lessons)
-        if name_matched_stage[i] is None
-    ]
+    needs_ai_indices = [i for i, lesson in enumerate(lessons) if name_matched_stage[i] is None]
 
     ai_results: dict[int, dict] = {}
 
@@ -183,6 +200,12 @@ async def classify_lessons(db: Session, lessons: list[dict]) -> list[dict]:
                     candidate_dept = raw_item.get("department_type_code")
                     dept_code = candidate_dept if candidate_dept in valid_dept_codes else None
 
+        procedure_code = None
+        if dept_code and dept_code in dept_by_code:
+            procedure_code = _match_procedure_by_name(
+                db, dept_by_code[dept_code].id, lesson.get("procedure_name"),
+            )
+
         section_title = (lesson.get("department_name") or lesson.get("stage_name") or lesson["title"]).strip()[:255]
         if not matched_by_name:
             ai_entry = ai_results.get(i, {})
@@ -192,6 +215,7 @@ async def classify_lessons(db: Session, lessons: list[dict]) -> list[dict]:
         results.append({
             "journey_stage_code": stage_code,
             "department_type_code": dept_code,
+            "procedure_code": procedure_code,
             "section_title": section_title,
             "error": error,
             "matched_by_name": matched_by_name,

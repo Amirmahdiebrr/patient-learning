@@ -4,12 +4,9 @@ app/api/v1/patient_self_auth.py
 
 Lets a patient register or log in directly from the panel, without
 ever scanning a QR code. Registration collects identity, contact
-info, hospital/department choice, and health/journey details all in
-one form, then immediately signs the same PATIENT_PROFILE cookie the
-QR flow uses (see app/services/access_gate_service.py) - so every
-downstream patient route (deps.get_access_context, lessons,
-assistant, etc.) works identically regardless of how the patient got
-in.
+info, hospital/department choice, and health/journey details
+(disease/treatment/procedure) all in one form, then signs the same
+PATIENT_PROFILE cookie the QR flow uses.
 """
 
 import uuid
@@ -27,14 +24,16 @@ from app.core.security import hash_password, verify_password
 from app.core.templates import templates
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
-    Hospital, Department, Disease, Treatment,
+    Hospital, Department, Disease, Treatment, Procedure,
     PatientAccessProfile, PatientRegistration, PatientJourneyProfile, JourneyStageCode,
 )
 from app.schemas.admin import HospitalResponse, DepartmentResponse
+from app.schemas.content_admin import ProcedureResponse
 from app.schemas.patient import (
     PatientSelfRegisterRequest, PatientLoginRequest, PatientSelfAuthResponse, OnboardingOptionsResponse,
 )
 from app.services import access_gate_service
+from app.services.content_admin.procedure_service import list_procedures
 from app.api.deps_rate_limit import rate_limit
 
 router = APIRouter(tags=["patient_self_auth"])
@@ -88,6 +87,18 @@ async def list_public_departments(hospital_id: uuid.UUID, db: Session = Depends(
     ]
 
 
+@router.get("/patient-auth/procedures", response_model=list[ProcedureResponse])
+async def list_public_procedures(department_type_id: uuid.UUID, db: Session = Depends(get_db)):
+    procedures = list_procedures(db, department_type_id, include_inactive=False)
+    return [
+        ProcedureResponse(
+            id=p.id, department_type_id=p.department_type_id, name=p.name,
+            slug=p.slug, is_active=p.is_active, display_order=p.display_order,
+        )
+        for p in procedures
+    ]
+
+
 @router.get("/patient-auth/onboarding-options", response_model=OnboardingOptionsResponse)
 async def public_onboarding_options(db: Session = Depends(get_db)):
     diseases = db.query(Disease).filter(Disease.is_active.is_(True)).order_by(Disease.name).all()
@@ -130,6 +141,11 @@ async def patient_self_register(
     if not department:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد یا به این بیمارستان تعلق ندارد.")
 
+    if payload.procedure_id:
+        procedure = db.query(Procedure).filter(Procedure.id == payload.procedure_id).first()
+        if not procedure or procedure.department_type_id != department.department_type_id:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "این عمل متعلق به این بخش نیست.")
+
     national_id_hash = hash_lookup_value(payload.national_id)
     existing = db.query(PatientRegistration).filter(PatientRegistration.national_id_hash == national_id_hash).first()
     if existing:
@@ -157,6 +173,7 @@ async def patient_self_register(
         patient_access_profile_id=profile.id,
         disease_id=payload.disease_id,
         treatment_id=payload.treatment_id,
+        procedure_id=payload.procedure_id,
         has_surgery=payload.has_surgery,
         age=payload.age,
         gender=payload.gender,

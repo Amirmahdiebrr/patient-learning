@@ -1,3 +1,4 @@
+# app/infrastructure/db/models/__init__.py
 """
 app/infrastructure/db/models/__init__.py
 """
@@ -11,6 +12,7 @@ from app.infrastructure.db.models.content import (
     Lesson, MediaAsset, MediaType, QuizQuestion, QuizOption,
     ContentTargetingRule, LessonOverrideLevel,
 )
+from app.infrastructure.db.models.procedure import Procedure
 from app.infrastructure.db.models.patient_interaction import (
     ProgressRecord, LessonProgressStatus, FavoriteRecord, QuizAttempt, FeedbackRecord,
 )
@@ -27,7 +29,7 @@ __all__ = [
     "PatientAccessProfile", "StandardDepartmentType", "DepartmentMacroCategory",
     "Disease", "Treatment", "JourneyStage", "JourneyStageCode", "EducationSection",
     "Lesson", "MediaAsset", "MediaType", "QuizQuestion", "QuizOption",
-    "ContentTargetingRule", "LessonOverrideLevel",
+    "ContentTargetingRule", "LessonOverrideLevel", "Procedure",
     "ProgressRecord", "LessonProgressStatus", "FavoriteRecord", "QuizAttempt", "FeedbackRecord",
     "PatientJourneyProfile", "PatientRegistration", "AuditLog",
     "FollowUpTask", "FollowUpChannel", "FollowUpStatus",

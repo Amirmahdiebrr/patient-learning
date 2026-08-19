@@ -1,3 +1,4 @@
+# app/schemas/content_bulk_import.py
 """
 app/schemas/content_bulk_import.py
 """
@@ -30,6 +31,7 @@ class RawLessonImportItem(BaseModel):
     body: str | None = None
     stage_name: str | None = Field(default=None, max_length=255)
     department_name: str | None = Field(default=None, max_length=255)
+    procedure_name: str | None = Field(default=None, max_length=255)
     quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
 
 
@@ -42,6 +44,7 @@ class ClassifiedLessonItem(BaseModel):
     body: str | None
     journey_stage_code: str | None
     department_type_code: str | None
+    procedure_code: str | None = None
     section_title: str
     quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)
     error: str | None = None
@@ -59,6 +62,7 @@ class SmartImportCommitItem(BaseModel):
     body: str | None = None
     journey_stage_code: str
     department_type_code: str | None = None
+    procedure_code: str | None = None
     section_title: str = Field(min_length=1, max_length=255)
     is_published: bool = True
     quiz_questions: list[RawQuizQuestionImportItem] = Field(default_factory=list)

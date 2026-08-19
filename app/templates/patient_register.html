@@ -38,9 +38,13 @@
         <div class="cl-field">
             <label>آیا قرار است عمل جراحی داشته باشید؟</label>
             <div class="cl-radio-group">
-                <label><input type="radio" name="has_surgery" value="yes"> بله</label>
-                <label><input type="radio" name="has_surgery" value="no"> خیر</label>
+                <label><input type="radio" name="has_surgery" value="yes" id="has-surgery-yes"> بله</label>
+                <label><input type="radio" name="has_surgery" value="no" id="has-surgery-no"> خیر</label>
             </div>
+        </div>
+        <div class="cl-field" id="procedure-field" style="display:none;">
+            <label for="procedure_id">نوع عمل جراحی (در صورت مشخص بودن)</label>
+            <select id="procedure_id"><option value="">— عمومی (نوع عمل مشخص نیست) —</option></select>
         </div>
         <div class="cl-field"><label for="age">سن</label><input type="number" id="age" min="0" max="120"></div>
         <div class="cl-field">
@@ -71,7 +75,10 @@
     const departmentSelect = document.getElementById("department_id");
     const diseaseSelect = document.getElementById("disease_id");
     const treatmentSelect = document.getElementById("treatment_id");
+    const procedureField = document.getElementById("procedure-field");
+    const procedureSelect = document.getElementById("procedure_id");
     let treatmentsByDisease = {};
+    let currentDepartmentTypeId = null;
 
     async function loadHospitals() {
         const res = await fetch("/patient-auth/hospitals");
@@ -86,7 +93,18 @@
         departmentSelect.innerHTML = departments.length === 0
             ? '<option value="">— این بیمارستان بخشی ندارد —</option>'
             : '<option value="">— انتخاب کنید —</option>' +
-              departments.map(function (d) { return `<option value="${d.id}">${d.name}</option>`; }).join("");
+              departments.map(function (d) { return `<option value="${d.id}" data-department-type-id="${d.department_type_id || ''}">${d.name}</option>`; }).join("");
+    }
+
+    async function loadProcedures(departmentTypeId) {
+        if (!departmentTypeId) {
+            procedureSelect.innerHTML = '<option value="">— عمومی (نوع عمل مشخص نیست) —</option>';
+            return;
+        }
+        const res = await fetch(`/patient-auth/procedures?department_type_id=${departmentTypeId}`);
+        const procedures = await res.json();
+        procedureSelect.innerHTML = '<option value="">— عمومی (نوع عمل مشخص نیست) —</option>' +
+            procedures.map(function (p) { return `<option value="${p.id}">${p.name}</option>`; }).join("");
     }
 
     async function loadOnboardingOptions() {
@@ -97,10 +115,29 @@
             data.diseases.map(function (d) { return `<option value="${d.id}">${d.name}</option>`; }).join("");
     }
 
+    function toggleProcedureField() {
+        const surgeryYes = document.getElementById("has-surgery-yes").checked;
+        procedureField.style.display = surgeryYes && currentDepartmentTypeId ? "block" : "none";
+        if (!surgeryYes) procedureSelect.value = "";
+    }
+
     hospitalSelect.addEventListener("change", function () {
         if (hospitalSelect.value) loadDepartments(hospitalSelect.value);
         else departmentSelect.innerHTML = '<option value="">— ابتدا بیمارستان را انتخاب کنید —</option>';
+        currentDepartmentTypeId = null;
+        loadProcedures(null);
+        toggleProcedureField();
     });
+
+    departmentSelect.addEventListener("change", function () {
+        const opt = departmentSelect.options[departmentSelect.selectedIndex];
+        currentDepartmentTypeId = opt ? (opt.dataset.departmentTypeId || null) : null;
+        loadProcedures(currentDepartmentTypeId);
+        toggleProcedureField();
+    });
+
+    document.getElementById("has-surgery-yes").addEventListener("change", toggleProcedureField);
+    document.getElementById("has-surgery-no").addEventListener("change", toggleProcedureField);
 
     diseaseSelect.addEventListener("change", function () {
         const opts = treatmentsByDisease[diseaseSelect.value] || [];
@@ -126,6 +163,7 @@
             password: document.getElementById("password").value,
             disease_id: diseaseSelect.value || null,
             treatment_id: treatmentSelect.value || null,
+            procedure_id: procedureSelect.value || null,
             has_surgery: hasSurgeryEl ? hasSurgeryEl.value === "yes" : null,
             age: document.getElementById("age").value ? parseInt(document.getElementById("age").value, 10) : null,
             gender: document.getElementById("gender").value || null,

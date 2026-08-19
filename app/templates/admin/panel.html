@@ -23,6 +23,7 @@
             دروسی که خودت از قبل نوشته‌ای را در یک فایل JSON (عنوان + متن + به‌صورت اختیاری سوالات آزمون هر درس، بدون مرحله/بخش) آپلود کن؛
             هوش مصنوعی مرحله و نوع بخش هرکدام را تشخیص می‌دهد، خودت نتیجه را زیر همین کارت بازبینی/ویرایش می‌کنی و بعد تایید می‌کنی تا واقعاً ساخته شوند.
             اگر برای یک درس در فایل، سوالات آزمون هم نوشته باشی، همان‌ها به‌عنوان آزمون آن درس ثبت می‌شوند.
+            اگر می‌خواهی درسی مخصوص یک «عمل» خاص باشد، نام دقیق آن عمل را در فیلد procedure_name بنویس.
         </p>
         <div class="cl-admin-inline-form">
             <button id="download-smart-import-template-btn" class="cl-btn cl-btn-sm cl-btn-outline">دانلود نمونه فایل</button>
@@ -37,6 +38,8 @@
         <p class="cl-sub">
             محتوا بر اساس «نوع بخش» ساخته می‌شود، نه بر اساس یک بیمارستان خاص.
             هر بیمارستانی که بعداً بخشی از همین نوع بسازد، خودکار همین محتوا را می‌گیرد.
+            اگر می‌خواهی یک آموزش مخصوص یک «عمل جراحی» خاص باشد (مثلاً «تعویض مفصل کامل زانو»)، پایین‌تر آن عمل را انتخاب کن؛
+            اگر خالی بگذاری، آموزش برای کل آن بخش (عمومی) در نظر گرفته می‌شود.
             «برچسب» فقط یک عنوان کوتاه برای بخش است؛ متن اصلی آموزش را در «درس» زیر آن بنویسید و سوالات آزمون این برچسب را هم از همین‌جا بسازید.
         </p>
 
@@ -50,6 +53,15 @@
                 <select id="content-department-type-select">
                     <option value="general">— عمومی (همه‌ی بخش‌ها) —</option>
                 </select>
+            </div>
+        </div>
+
+        <div class="cl-field" id="content-procedure-field" style="display:none;">
+            <label>عمل / پروسیجر (اختیاری - خالی یعنی آموزش عمومی همین بخش)</label>
+            <select id="content-procedure-select"><option value="">— عمومی —</option></select>
+            <div class="cl-admin-inline-form" style="margin-top:8px;">
+                <input type="text" id="new-procedure-name" placeholder="نام عمل جدید (مثلاً: تعویض مفصل کامل زانو)">
+                <button id="create-procedure-btn" class="cl-btn cl-btn-sm cl-btn-outline">+ افزودن عمل جدید</button>
             </div>
         </div>
     </div>
@@ -174,10 +186,13 @@
     let allJourneyStages = [];
 
     const state = {
-        contentDepartmentTypeId: "general", stageId: null, sectionId: null, hospitalId: null, departmentId: null,
+        contentDepartmentTypeId: "general", procedureId: null, stageId: null, sectionId: null,
+        hospitalId: null, departmentId: null,
     };
 
     const contentDeptTypeSelect = document.getElementById("content-department-type-select");
+    const contentProcedureField = document.getElementById("content-procedure-field");
+    const contentProcedureSelect = document.getElementById("content-procedure-select");
     const stageSelect = document.getElementById("stage-select");
     const sectionCard = document.getElementById("section-card");
     const sectionList = document.getElementById("section-list");
@@ -220,6 +235,47 @@
         stageSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
             allJourneyStages.map(function (s) { return `<option value="${s.id}">${escapeHtml(s.name)}</option>`; }).join("");
     }
+
+    // ==========================
+    // Procedures (per selected department type)
+    // ==========================
+
+    async function loadProcedures(departmentTypeId, selectAfterId) {
+        if (!departmentTypeId) {
+            contentProcedureField.style.display = "none";
+            contentProcedureSelect.innerHTML = '<option value="">— عمومی —</option>';
+            state.procedureId = null;
+            return;
+        }
+        contentProcedureField.style.display = "block";
+        const procedures = await api(`/admin/procedures?department_type_id=${departmentTypeId}`);
+        contentProcedureSelect.innerHTML = '<option value="">— عمومی —</option>' +
+            procedures.map(function (p) { return `<option value="${p.id}">${escapeHtml(p.name)}</option>`; }).join("");
+        if (selectAfterId) contentProcedureSelect.value = selectAfterId;
+        state.procedureId = contentProcedureSelect.value || null;
+    }
+
+    contentProcedureSelect.addEventListener("change", function () {
+        state.procedureId = contentProcedureSelect.value || null;
+        if (state.stageId) loadSections();
+    });
+
+    document.getElementById("create-procedure-btn").addEventListener("click", async function () {
+        const name = document.getElementById("new-procedure-name").value.trim();
+        if (!name) { AdminToast.error("نام عمل را وارد کنید."); return; }
+        if (state.contentDepartmentTypeId === "general") { AdminToast.error("اول یک نوع بخش مشخص (نه عمومی) انتخاب کنید."); return; }
+        try {
+            const procedure = await api("/admin/procedures", {
+                method: "POST",
+                body: JSON.stringify({ department_type_id: state.contentDepartmentTypeId, name: name, display_order: 0 }),
+            });
+            document.getElementById("new-procedure-name").value = "";
+            AdminToast.success("عمل اضافه شد.");
+            await loadProcedures(state.contentDepartmentTypeId, procedure.id);
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
 
     // ==========================
     // Quiz manager (reusable for both the per-section panel and the global stage-level card)
@@ -270,7 +326,8 @@
 
     async function loadQuizList(prefix) {
         const mgr = quizManagers[prefix];
-        const url = `/admin/stage-quiz-questions?journey_stage_id=${mgr.journeyStageId}&department_type_id=${mgr.departmentTypeId || "general"}`;
+        let url = `/admin/stage-quiz-questions?journey_stage_id=${mgr.journeyStageId}&department_type_id=${mgr.departmentTypeId || "general"}`;
+        if (mgr.procedureId) url += `&procedure_id=${mgr.procedureId}`;
         const questions = await api(url);
         const listEl = document.getElementById(`${prefix}-list`);
         listEl.innerHTML = questions.length === 0
@@ -338,6 +395,7 @@
                 body: JSON.stringify({
                     journey_stage_id: mgr.journeyStageId,
                     department_type_id: mgr.departmentTypeId || null,
+                    procedure_id: mgr.procedureId || null,
                     question_text: questionText,
                     question_image_url: questionImageUrl,
                     options: options,
@@ -352,8 +410,11 @@
         }
     }
 
-    function initQuizManager(prefix, journeyStageId, departmentTypeId, containerEl) {
-        quizManagers[prefix] = { journeyStageId: journeyStageId, departmentTypeId: departmentTypeId, optionCount: 0 };
+    function initQuizManager(prefix, journeyStageId, departmentTypeId, procedureId, containerEl) {
+        quizManagers[prefix] = {
+            journeyStageId: journeyStageId, departmentTypeId: departmentTypeId,
+            procedureId: procedureId, optionCount: 0,
+        };
         containerEl.innerHTML = quizPanelHTML(prefix);
 
         containerEl.querySelector(`[data-quiz-add-option="${prefix}"]`).addEventListener("click", function () {
@@ -374,7 +435,7 @@
     async function loadSections() {
         Object.keys(quizManagers).forEach(function (k) { if (k.indexOf("secquiz-") === 0) delete quizManagers[k]; });
 
-        const url = `/admin/education-sections?journey_stage_id=${state.stageId}&department_type_id=${state.contentDepartmentTypeId}`;
+        let url = `/admin/education-sections?journey_stage_id=${state.stageId}&department_type_id=${state.contentDepartmentTypeId}`;
         const sections = await api(url);
         sectionList.innerHTML = sections.length === 0
             ? '<p style="color:#8CA0B3; font-size:13.5px;">هنوز برچسبی برای این ترکیب ساخته نشده.</p>'
@@ -383,10 +444,13 @@
     }
 
     function renderSectionRow(s) {
+        const procBadge = s.procedure_name
+            ? ` <small style="color:var(--accent); font-weight:700;">[${escapeHtml(s.procedure_name)}]</small>`
+            : "";
         return `
         <div class="cl-admin-section-block" data-section-block-id="${s.id}">
             <div class="cl-admin-section-row" data-section-id="${s.id}">
-                <button class="cl-admin-pick-btn" data-section-id="${s.id}">${escapeHtml(s.title)} <small>(${s.lesson_count} درس)</small></button>
+                <button class="cl-admin-pick-btn" data-section-id="${s.id}">${escapeHtml(s.title)}${procBadge} <small>(${s.lesson_count} درس)</small></button>
                 <button class="cl-admin-icon-btn" data-action="edit-section" data-section-id="${s.id}" title="ویرایش">✎</button>
                 <button class="cl-admin-icon-btn" data-action="toggle-section-quiz" data-section-id="${s.id}" title="سوالات این برچسب">❓</button>
                 <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-action="delete-section" data-section-id="${s.id}" title="حذف">🗑</button>
@@ -418,6 +482,7 @@
                     body: JSON.stringify({
                         journey_stage_id: section.journey_stage_id,
                         department_type_id: section.department_type_id,
+                        procedure_id: section.procedure_id,
                         treatment_id: section.treatment_id,
                         title: result.title,
                     }),
@@ -436,7 +501,7 @@
             panel.style.display = "block";
             const prefix = `secquiz-${section.id}`;
             if (!quizManagers[prefix]) {
-                initQuizManager(prefix, section.journey_stage_id, section.department_type_id, panel);
+                initQuizManager(prefix, section.journey_stage_id, section.department_type_id, section.procedure_id, panel);
             }
         });
 
@@ -782,6 +847,7 @@
         smartImportState.forEach(function (item, idx) {
             const errorNote = item.error ? `<p style="color:var(--warn); font-size:12px; margin:4px 0 0;">${escapeHtml(item.error)}</p>` : "";
             const matchedNote = item.matched_by_name ? `<p style="color:var(--success); font-size:12px; margin:4px 0 0;">✓ مرحله از روی نام دقیق تشخیص داده شد.</p>` : "";
+            const procNote = item.procedure_code ? `<p style="color:var(--accent); font-size:12px; margin:4px 0 0;">✓ عمل «${escapeHtml(item.procedure_code)}» تشخیص داده شد.</p>` : "";
             const quizCount = (item.quiz_questions || []).length;
             const quizNote = quizCount > 0
                 ? `<p style="color:var(--accent); font-size:12px; margin:6px 0 0;">${quizCount} سوال آزمون همراه این درس ثبت خواهد شد.</p>`
@@ -791,7 +857,7 @@
                     <strong>${escapeHtml(item.title)}</strong>
                     <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-smart-remove="${idx}" title="حذف از لیست">🗑</button>
                 </div>
-                ${errorNote}${matchedNote}
+                ${errorNote}${matchedNote}${procNote}
                 ${quizNote}
                 <div class="cl-admin-row" style="margin-top:10px;">
                     <div class="cl-field">
@@ -864,9 +930,11 @@
                     title: item.title, body: item.body,
                     journey_stage_code: item.journey_stage_code,
                     department_type_code: item.department_type_code,
+                    procedure_code: item.procedure_code,
                     section_title: item.section_title,
                     quiz_questions: item.quiz_questions || [],
                     error: item.error,
+                    matched_by_name: item.matched_by_name,
                 };
             });
             renderSmartImportReview();
@@ -890,6 +958,7 @@
                     body: item.body,
                     journey_stage_code: item.journey_stage_code,
                     department_type_code: item.department_type_code,
+                    procedure_code: item.procedure_code,
                     section_title: item.section_title,
                     is_published: true,
                     quiz_questions: item.quiz_questions || [],
@@ -928,13 +997,15 @@
 
     // ---------- Sections + stage-level quiz handlers ----------
 
-    contentDeptTypeSelect.addEventListener("change", function () {
+    contentDeptTypeSelect.addEventListener("change", async function () {
         state.contentDepartmentTypeId = contentDeptTypeSelect.value;
+        await loadProcedures(state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId);
         if (state.stageId) {
-            loadSections();
+            await loadSections();
             initQuizManager(
                 "stage-quiz-global", state.stageId,
                 state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
+                state.procedureId,
                 document.getElementById("stage-quiz-container"),
             );
         }
@@ -951,6 +1022,7 @@
             initQuizManager(
                 "stage-quiz-global", state.stageId,
                 state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
+                state.procedureId,
                 document.getElementById("stage-quiz-container"),
             );
         } else {
@@ -969,6 +1041,7 @@
                 body: JSON.stringify({
                     journey_stage_id: state.stageId,
                     department_type_id: state.contentDepartmentTypeId === "general" ? null : state.contentDepartmentTypeId,
+                    procedure_id: state.procedureId || null,
                     title: title, display_order: 0,
                 }),
             });

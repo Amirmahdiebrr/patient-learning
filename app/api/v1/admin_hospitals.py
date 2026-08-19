@@ -1,3 +1,4 @@
+# app/api/v1/admin_hospitals.py
 """
 app/api/v1/admin_hospitals.py
 """
@@ -69,13 +70,8 @@ async def create_hospital(
     db.refresh(hospital)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="create",
-        object_type="hospital",
-        object_id=hospital.id,
-        before=None,
-        after=_hospital_snapshot(hospital),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="create", object_type="hospital", object_id=hospital.id,
+        before=None, after=_hospital_snapshot(hospital), ip_address=client_ip(request),
     ))
 
     return hospital
@@ -115,12 +111,8 @@ async def list_pending_hospitals(
         responsible = assignment.admin_user if assignment else None
 
         results.append(PendingHospitalResponse(
-            id=h.id,
-            name=h.name,
-            address=h.address,
-            phone_number=h.phone_number,
-            responsible_phone=h.responsible_phone,
-            responsible_national_id=h.responsible_national_id,
+            id=h.id, name=h.name, address=h.address, phone_number=h.phone_number,
+            responsible_phone=h.responsible_phone, responsible_national_id=h.responsible_national_id,
             responsible_full_name=responsible.full_name if responsible else None,
             responsible_email=responsible.email if responsible else None,
             created_at=h.created_at,
@@ -178,13 +170,8 @@ async def update_hospital(
     db.refresh(hospital)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="update",
-        object_type="hospital",
-        object_id=hospital.id,
-        before=before,
-        after=_hospital_snapshot(hospital),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="update", object_type="hospital", object_id=hospital.id,
+        before=before, after=_hospital_snapshot(hospital), ip_address=client_ip(request),
     ))
 
     return hospital
@@ -207,13 +194,8 @@ async def deactivate_hospital(
     db.refresh(hospital)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="deactivate",
-        object_type="hospital",
-        object_id=hospital.id,
-        before=before,
-        after=_hospital_snapshot(hospital),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="deactivate", object_type="hospital", object_id=hospital.id,
+        before=before, after=_hospital_snapshot(hospital), ip_address=client_ip(request),
     ))
 
     return hospital
@@ -236,13 +218,8 @@ async def reactivate_hospital(
     db.refresh(hospital)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="reactivate",
-        object_type="hospital",
-        object_id=hospital.id,
-        before=before,
-        after=_hospital_snapshot(hospital),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="reactivate", object_type="hospital", object_id=hospital.id,
+        before=before, after=_hospital_snapshot(hospital), ip_address=client_ip(request),
     ))
 
     return hospital
@@ -255,16 +232,19 @@ async def reactivate_hospital(
 @router.get("/department-types", response_model=list[StandardDepartmentTypeResponse])
 async def list_department_types(
     macro_category: str | None = None,
+    include_inactive: bool = False,
     db: Session = Depends(get_db),
 ):
     query = db.query(StandardDepartmentType)
+    if not include_inactive:
+        query = query.filter(StandardDepartmentType.is_active.is_(True))
     if macro_category:
         query = query.filter(StandardDepartmentType.macro_category == macro_category)
     types = query.order_by(StandardDepartmentType.macro_category, StandardDepartmentType.display_order).all()
     return [
         StandardDepartmentTypeResponse(
             id=t.id, macro_category=t.macro_category.value, code=t.code,
-            name=t.name, display_order=t.display_order,
+            name=t.name, display_order=t.display_order, is_active=t.is_active,
         )
         for t in types
     ]
@@ -296,23 +276,15 @@ async def create_department(
     name = (payload.name or "").strip() or dept_type.name
 
     department = Department(
-        hospital_id=hospital.id,
-        name=name,
-        slug=slugify(name),
-        department_type_id=dept_type.id,
+        hospital_id=hospital.id, name=name, slug=slugify(name), department_type_id=dept_type.id,
     )
     db.add(department)
     db.commit()
     db.refresh(department)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="create",
-        object_type="department",
-        object_id=department.id,
-        before=None,
-        after=_department_snapshot(department),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="create", object_type="department", object_id=department.id,
+        before=None, after=_department_snapshot(department), ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)
@@ -365,13 +337,8 @@ async def update_department(
     db.refresh(department)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="update",
-        object_type="department",
-        object_id=department.id,
-        before=before,
-        after=_department_snapshot(department),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="update", object_type="department", object_id=department.id,
+        before=before, after=_department_snapshot(department), ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)
@@ -396,13 +363,8 @@ async def deactivate_department(
     db.refresh(department)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="deactivate",
-        object_type="department",
-        object_id=department.id,
-        before=before,
-        after=_department_snapshot(department),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="deactivate", object_type="department", object_id=department.id,
+        before=before, after=_department_snapshot(department), ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)
@@ -427,13 +389,8 @@ async def reactivate_department(
     db.refresh(department)
 
     event_bus.publish(AdminContentAction(
-        admin_id=admin.id,
-        action="reactivate",
-        object_type="department",
-        object_id=department.id,
-        before=before,
-        after=_department_snapshot(department),
-        ip_address=client_ip(request),
+        admin_id=admin.id, action="reactivate", object_type="department", object_id=department.id,
+        before=before, after=_department_snapshot(department), ip_address=client_ip(request),
     ))
 
     return _to_department_response(department)

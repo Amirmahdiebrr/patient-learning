@@ -37,6 +37,7 @@ class PatientRegistrationSubmitRequest(BaseModel):
 class OnboardingSubmitRequest(BaseModel):
     disease_id: uuid.UUID | None = None
     treatment_id: uuid.UUID | None = None
+    procedure_id: uuid.UUID | None = None
     has_surgery: bool | None = None
     age: int | None = Field(default=None, ge=0, le=120)
     gender: str | None = None
@@ -96,6 +97,7 @@ class PatientSelfRegisterRequest(BaseModel):
 
     disease_id: uuid.UUID | None = None
     treatment_id: uuid.UUID | None = None
+    procedure_id: uuid.UUID | None = None
     has_surgery: bool | None = None
     age: int | None = Field(default=None, ge=0, le=120)
     gender: str | None = None
@@ -152,6 +154,7 @@ class PatientProfileResponse(BaseModel):
     current_stage_name: str | None
     disease_name: str | None
     treatment_name: str | None
+    procedure_name: str | None
     age: int | None
     gender: str | None
     has_surgery: bool | None

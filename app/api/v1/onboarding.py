@@ -2,13 +2,12 @@
 """
 app/api/v1/onboarding.py
 
-Used by the QR flow (patient already has a profile bound to a
-hospital/department via QR or self-service registration, but still
-needs to fill in identity + health details). Self-service patients
-skip this entirely since /patient-auth/register collects everything
-up front.
+Used by the QR flow. Self-service patients skip this since
+/patient-auth/register collects everything up front.
 """
 
+import re
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Request, Depends, Form, HTTPException, status
@@ -20,7 +19,7 @@ from app.core.events import PatientRegistered
 from app.core.encryption import hash_lookup_value
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
-    Disease, Treatment, PatientJourneyProfile, JourneyStageCode, PatientRegistration,
+    Disease, Treatment, Procedure, PatientJourneyProfile, JourneyStageCode, PatientRegistration,
 )
 from app.api.deps import AccessContext, get_access_context, get_active_journey
 from app.services.patient_journey_state_machine import transition_stage, InvalidStageTransitionError
@@ -28,7 +27,6 @@ from app.core.templates import templates
 
 router = APIRouter(tags=["onboarding"])
 
-import re
 NATIONAL_ID_PATTERN = re.compile(r"^\d{10}$")
 PHONE_PATTERN = re.compile(r"^09\d{9}$")
 
@@ -52,6 +50,7 @@ async def onboarding_form(
             "treatments": treatments,
             "department": context.department,
             "hospital": context.hospital,
+            "department_type_id": context.department.department_type_id,
         },
     )
 
@@ -66,6 +65,7 @@ async def onboarding_submit(
     insurance_code: str = Form(None),
     disease_id: str = Form(None),
     treatment_id: str = Form(None),
+    procedure_id: str = Form(None),
     has_surgery: str = Form(None),
     age: str = Form(None),
     gender: str = Form(None),
@@ -82,6 +82,17 @@ async def onboarding_submit(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "کد ملی نامعتبر است.")
     if not PHONE_PATTERN.match(phone_number):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "شماره همراه نامعتبر است.")
+
+    resolved_procedure_id = None
+    if procedure_id:
+        try:
+            candidate = uuid.UUID(procedure_id)
+        except ValueError:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "شناسه‌ی عمل نامعتبر است.")
+        procedure = db.query(Procedure).filter(Procedure.id == candidate).first()
+        if not procedure or procedure.department_type_id != context.department.department_type_id:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "این عمل متعلق به این بخش نیست.")
+        resolved_procedure_id = candidate
 
     registration = (
         db.query(PatientRegistration)
@@ -102,6 +113,7 @@ async def onboarding_submit(
 
     journey.disease_id = disease_id or None
     journey.treatment_id = treatment_id or None
+    journey.procedure_id = resolved_procedure_id
     journey.has_surgery = {"yes": True, "no": False}.get(has_surgery)
     journey.age = int(age) if age and age.isdigit() else None
     journey.gender = gender if gender in ("male", "female", "other") else None

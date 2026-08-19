@@ -1,17 +1,15 @@
+# app/services/content_admin/section_service.py
 """
 app/services/content_admin/section_service.py
 
-EducationSection CRUD. journey_stage/department_type/treatment
-existence checks live here so the route layer stays a thin
-validation+call wrapper. section_snapshot() is exported for the route
-to build AdminContentAction before/after payloads.
+EducationSection CRUD. journey_stage/department_type/treatment/
+procedure existence + consistency checks live here so the route
+layer stays a thin validation+call wrapper.
 
-delete_section() now cascades: deleting a section also deletes every
-lesson inside it (and, via ORM cascade on Lesson's relationships,
-their media_assets/quiz_questions/quiz_options/targeting_rules), after
-first clearing the non-cascaded FKs (favorite_records, progress_records,
-quiz_attempts, feedback_records) exactly like lesson_service.delete_lesson
-does for a single lesson.
+delete_section() cascades: deleting a section also deletes every
+lesson inside it, after first clearing the non-cascaded FKs
+(favorite_records, progress_records, quiz_attempts, feedback_records)
+exactly like lesson_service.delete_lesson does for a single lesson.
 """
 
 import uuid
@@ -19,10 +17,11 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import (
-    EducationSection, JourneyStage, StandardDepartmentType, Treatment,
+    EducationSection, JourneyStage, StandardDepartmentType, Treatment, Procedure,
     Lesson, QuizQuestion, QuizAttempt, FavoriteRecord, ProgressRecord, FeedbackRecord,
 )
 from app.services.content_admin.errors import ContentNotFoundError
+from app.services.content_admin.procedure_service import validate_procedure_matches_department
 
 
 def section_snapshot(section: EducationSection) -> dict:
@@ -30,6 +29,7 @@ def section_snapshot(section: EducationSection) -> dict:
         "title": section.title,
         "journey_stage_id": str(section.journey_stage_id),
         "department_type_id": str(section.department_type_id) if section.department_type_id else None,
+        "procedure_id": str(section.procedure_id) if section.procedure_id else None,
         "treatment_id": str(section.treatment_id) if section.treatment_id else None,
         "is_active": section.is_active,
     }
@@ -40,6 +40,7 @@ def _validate_refs(
     journey_stage_id: uuid.UUID,
     department_type_id: uuid.UUID | None,
     treatment_id: uuid.UUID | None,
+    procedure_id: uuid.UUID | None,
 ) -> None:
     if not db.query(JourneyStage).filter(JourneyStage.id == journey_stage_id).first():
         raise ContentNotFoundError("مرحله‌ی سفر بیمار پیدا نشد.")
@@ -52,6 +53,8 @@ def _validate_refs(
     if treatment_id and not db.query(Treatment).filter(Treatment.id == treatment_id).first():
         raise ContentNotFoundError("درمان/عمل پیدا نشد.")
 
+    validate_procedure_matches_department(db, procedure_id, department_type_id)
+
 
 def create_section(
     db: Session,
@@ -60,12 +63,14 @@ def create_section(
     treatment_id: uuid.UUID | None,
     title: str,
     display_order: int,
+    procedure_id: uuid.UUID | None = None,
 ) -> EducationSection:
-    _validate_refs(db, journey_stage_id, department_type_id, treatment_id)
+    _validate_refs(db, journey_stage_id, department_type_id, treatment_id, procedure_id)
 
     section = EducationSection(
         journey_stage_id=journey_stage_id,
         department_type_id=department_type_id,
+        procedure_id=procedure_id,
         treatment_id=treatment_id,
         title=title,
         display_order=display_order,
@@ -110,14 +115,16 @@ def update_section(
     department_type_id: uuid.UUID | None,
     treatment_id: uuid.UUID | None,
     title: str,
+    procedure_id: uuid.UUID | None = None,
 ) -> tuple[EducationSection, dict]:
     section = get_section_or_raise(db, section_id)
-    _validate_refs(db, journey_stage_id, department_type_id, treatment_id)
+    _validate_refs(db, journey_stage_id, department_type_id, treatment_id, procedure_id)
 
     before = section_snapshot(section)
 
     section.journey_stage_id = journey_stage_id
     section.department_type_id = department_type_id
+    section.procedure_id = procedure_id
     section.treatment_id = treatment_id
     section.title = title
     db.commit()

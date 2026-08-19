@@ -1,3 +1,4 @@
+{# app/templates/onboarding.html #}
 {% extends "base.html" %}
 {% block title %}تکمیل اطلاعات | CuraLink{% endblock %}
 {% block content %}
@@ -8,7 +9,7 @@
             برای تکمیل پرونده‌ی آموزشی شما و امکان پیگیری‌های بعدی، لطفاً اطلاعات زیر را وارد کنید.
         </p>
 
-        <form method="post" action="/onboarding">
+        <form method="post" action="/onboarding" id="onboarding-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
             <div class="cl-field">
@@ -65,9 +66,16 @@
             <div class="cl-field">
                 <label>آیا قرار است عمل جراحی داشته باشید؟</label>
                 <div class="cl-radio-group">
-                    <label><input type="radio" name="has_surgery" value="yes"> بله</label>
-                    <label><input type="radio" name="has_surgery" value="no"> خیر</label>
+                    <label><input type="radio" name="has_surgery" value="yes" id="has-surgery-yes"> بله</label>
+                    <label><input type="radio" name="has_surgery" value="no" id="has-surgery-no"> خیر</label>
                 </div>
+            </div>
+
+            <div class="cl-field" id="procedure-field" style="display:none;">
+                <label for="procedure_id">نوع عمل جراحی (در صورت مشخص بودن)</label>
+                <select name="procedure_id" id="procedure_id">
+                    <option value="">— عمومی (نوع عمل مشخص نیست) —</option>
+                </select>
             </div>
 
             <div class="cl-field">
@@ -89,4 +97,35 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const DEPARTMENT_TYPE_ID = {{ ('"' + department_type_id|string + '"') if department_type_id else 'null' }};
+    const procedureField = document.getElementById("procedure-field");
+    const procedureSelect = document.getElementById("procedure_id");
+
+    async function loadProcedures() {
+        if (!DEPARTMENT_TYPE_ID) return;
+        try {
+            const res = await fetch(`/patient-auth/procedures?department_type_id=${DEPARTMENT_TYPE_ID}`);
+            const procedures = await res.json();
+            procedureSelect.innerHTML = '<option value="">— عمومی (نوع عمل مشخص نیست) —</option>' +
+                procedures.map(function (p) { return `<option value="${p.id}">${p.name}</option>`; }).join("");
+        } catch (e) { /* keep general-only option */ }
+    }
+
+    function toggleProcedureField() {
+        const surgeryYes = document.getElementById("has-surgery-yes").checked;
+        procedureField.style.display = surgeryYes && DEPARTMENT_TYPE_ID ? "block" : "none";
+        if (!surgeryYes) procedureSelect.value = "";
+    }
+
+    document.getElementById("has-surgery-yes").addEventListener("change", toggleProcedureField);
+    document.getElementById("has-surgery-no").addEventListener("change", toggleProcedureField);
+
+    loadProcedures();
+})();
+</script>
 {% endblock %}

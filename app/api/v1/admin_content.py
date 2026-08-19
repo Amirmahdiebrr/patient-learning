@@ -1,20 +1,15 @@
+# app/api/v1/admin_content.py
 """
 app/api/v1/admin_content.py
 
 Thin HTTP layer for the shared educational content library. All
-business logic (existence checks, uniqueness rules, sanitization)
-lives in app/services/content_admin/* - this file only: validates
-the caller's scope, calls the right service function, converts
-service-layer exceptions into HTTPException, and publishes
-AdminContentAction audit events. See app/services/content_admin/
-for the actual CRUD rules and docstrings on each domain.
+business logic lives in app/services/content_admin/* - this file
+only: validates the caller's scope, calls the right service function,
+converts service-layer exceptions into HTTPException, and publishes
+AdminContentAction audit events.
 
-Hospital-specific writes (hospital override lessons, targeting rules
-scoped to a hospital) additionally call ensure_hospital_access before
-touching the service layer, so a content_manager whose role
-assignment is scoped to one hospital (or who has none at all) can't
-touch another hospital's data just by holding the content_manager
-role.
+Hospital-specific writes additionally call ensure_hospital_access
+before touching the service layer.
 """
 
 import uuid
@@ -30,6 +25,7 @@ from app.schemas.content_admin import (
     DiseaseCreateRequest, DiseaseResponse,
     TreatmentCreateRequest, TreatmentResponse,
     JourneyStageResponse,
+    ProcedureCreateRequest, ProcedureUpdateRequest, ProcedureResponse,
     EducationSectionCreateRequest, EducationSectionUpdateRequest, EducationSectionResponse,
     LessonCreateRequest, LessonUpdateRequest, LessonResponse, LessonSearchResultResponse,
     HospitalOverrideCreateRequest,
@@ -48,6 +44,7 @@ from app.services.content_admin import (
     media_asset_service,
     quiz_service,
     targeting_rule_service,
+    procedure_service,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin_content"])
@@ -66,9 +63,6 @@ def _raise_for(exc: Exception):
 
 
 def _parse_department_type_id(raw: str | None) -> tuple[uuid.UUID | None, bool]:
-    """Returns (parsed_uuid_or_None, is_general). raw="general" means
-    "no department type" as an explicit filter, distinct from raw=None
-    which means "don't filter by department type at all"."""
     if raw == "general":
         return None, True
     if raw:
@@ -85,11 +79,24 @@ def _to_section_response(section) -> EducationSectionResponse:
         journey_stage_id=section.journey_stage_id,
         department_type_id=section.department_type_id,
         department_type_name=section.department_type.name if section.department_type else None,
+        procedure_id=section.procedure_id,
+        procedure_name=section.procedure.name if section.procedure else None,
         treatment_id=section.treatment_id,
         title=section.title,
         display_order=section.display_order,
         is_active=section.is_active,
         lesson_count=len(section.lessons),
+    )
+
+
+def _to_procedure_response(procedure) -> ProcedureResponse:
+    return ProcedureResponse(
+        id=procedure.id,
+        department_type_id=procedure.department_type_id,
+        name=procedure.name,
+        slug=procedure.slug,
+        is_active=procedure.is_active,
+        display_order=procedure.display_order,
     )
 
 
@@ -101,6 +108,8 @@ def _to_quiz_response(question) -> QuizQuestionResponse:
         journey_stage_name=question.journey_stage.name if question.journey_stage else None,
         department_type_id=question.department_type_id,
         department_type_name=question.department_type.name if question.department_type else None,
+        procedure_id=question.procedure_id,
+        procedure_name=question.procedure.name if question.procedure else None,
         question_text=question.question_text,
         question_image_url=question.question_image_url,
         display_order=question.display_order,
@@ -161,6 +170,77 @@ async def list_journey_stages(db: Session = Depends(get_db)):
 
 
 # ==========================
+# Procedure
+# ==========================
+
+@router.post("/procedures", response_model=ProcedureResponse)
+async def create_procedure(
+    payload: ProcedureCreateRequest,
+    admin: AdminUser = Depends(require_content_editor()),
+    db: Session = Depends(get_db),
+):
+    try:
+        procedure = procedure_service.create_procedure(
+            db, payload.department_type_id, payload.name, payload.display_order,
+        )
+    except ContentNotFoundError as exc:
+        _raise_for(exc)
+    return _to_procedure_response(procedure)
+
+
+@router.get("/procedures", response_model=list[ProcedureResponse])
+async def list_procedures(
+    department_type_id: uuid.UUID,
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+):
+    procedures = procedure_service.list_procedures(db, department_type_id, include_inactive)
+    return [_to_procedure_response(p) for p in procedures]
+
+
+@router.patch("/procedures/{procedure_id}", response_model=ProcedureResponse)
+async def update_procedure(
+    procedure_id: uuid.UUID,
+    payload: ProcedureUpdateRequest,
+    admin: AdminUser = Depends(require_content_editor()),
+    db: Session = Depends(get_db),
+):
+    try:
+        procedure = procedure_service.update_procedure(
+            db, procedure_id, payload.name, payload.is_active, payload.display_order,
+        )
+    except ContentNotFoundError as exc:
+        _raise_for(exc)
+    return _to_procedure_response(procedure)
+
+
+@router.post("/procedures/{procedure_id}/deactivate", response_model=ProcedureResponse)
+async def deactivate_procedure(
+    procedure_id: uuid.UUID,
+    admin: AdminUser = Depends(require_content_editor()),
+    db: Session = Depends(get_db),
+):
+    try:
+        procedure = procedure_service.set_procedure_active(db, procedure_id, is_active=False)
+    except ContentNotFoundError as exc:
+        _raise_for(exc)
+    return _to_procedure_response(procedure)
+
+
+@router.post("/procedures/{procedure_id}/reactivate", response_model=ProcedureResponse)
+async def reactivate_procedure(
+    procedure_id: uuid.UUID,
+    admin: AdminUser = Depends(require_content_editor()),
+    db: Session = Depends(get_db),
+):
+    try:
+        procedure = procedure_service.set_procedure_active(db, procedure_id, is_active=True)
+    except ContentNotFoundError as exc:
+        _raise_for(exc)
+    return _to_procedure_response(procedure)
+
+
+# ==========================
 # EducationSection
 # ==========================
 
@@ -175,6 +255,7 @@ async def create_education_section(
         section = section_service.create_section(
             db, payload.journey_stage_id, payload.department_type_id,
             payload.treatment_id, payload.title, payload.display_order,
+            procedure_id=payload.procedure_id,
         )
     except (ContentNotFoundError, ContentConflictError, ContentValidationError) as exc:
         _raise_for(exc)
@@ -210,7 +291,7 @@ async def update_education_section(
     try:
         section, before = section_service.update_section(
             db, section_id, payload.journey_stage_id, payload.department_type_id,
-            payload.treatment_id, payload.title,
+            payload.treatment_id, payload.title, procedure_id=payload.procedure_id,
         )
     except (ContentNotFoundError, ContentConflictError, ContentValidationError) as exc:
         _raise_for(exc)
@@ -427,10 +508,6 @@ async def create_hospital_override(
     admin: AdminUser = Depends(require_content_editor()),
     db: Session = Depends(get_db),
 ):
-    # A hospital override is hospital-specific content - a content_manager
-    # scoped to a different hospital (or with no hospital scope at all)
-    # must not be able to create one here, even though require_content_editor
-    # already confirmed they hold the content_manager/super_admin role.
     ensure_hospital_access(admin, db, payload.hospital_id)
 
     try:
@@ -507,6 +584,7 @@ async def create_quiz_question(
         question = quiz_service.create_quiz_question(
             db, payload.lesson_id, payload.journey_stage_id, payload.department_type_id,
             payload.question_text, payload.question_image_url, payload.display_order, payload.options,
+            procedure_id=payload.procedure_id,
         )
     except ContentNotFoundError as exc:
         _raise_for(exc)
@@ -524,10 +602,11 @@ async def list_quiz_questions(lesson_id: uuid.UUID, db: Session = Depends(get_db
 async def list_stage_quiz_questions(
     journey_stage_id: uuid.UUID,
     department_type_id: str | None = None,
+    procedure_id: uuid.UUID | None = None,
     db: Session = Depends(get_db),
 ):
     parsed_id, is_general = _parse_department_type_id(department_type_id)
-    questions = quiz_service.list_stage_quiz_questions(db, journey_stage_id, parsed_id, is_general)
+    questions = quiz_service.list_stage_quiz_questions(db, journey_stage_id, parsed_id, is_general, procedure_id)
     return [_to_quiz_response(q) for q in questions]
 
 
@@ -554,9 +633,6 @@ async def create_content_targeting_rule(
     db: Session = Depends(get_db),
 ):
     if payload.hospital_id:
-        # Same reasoning as create_hospital_override: a rule scoped to
-        # one hospital is hospital-specific data, so the acting admin
-        # must actually have access to THAT hospital.
         ensure_hospital_access(admin, db, payload.hospital_id)
 
     try:

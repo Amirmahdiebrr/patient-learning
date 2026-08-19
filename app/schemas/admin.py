@@ -59,6 +59,7 @@ class StandardDepartmentTypeResponse(BaseModel):
     code: str
     name: str
     display_order: int
+    is_active: bool
 
     model_config = {"from_attributes": True}
 

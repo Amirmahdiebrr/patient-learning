@@ -1,17 +1,16 @@
+# app/services/patient_journey_state_machine.py
 """
 app/services/patient_journey_state_machine.py
 
 Explicit rule-based state machine for PatientJourneyProfile.current_stage.
 ALLOWED_TRANSITIONS is the single source of truth - callers never
-hardcode stage logic. Supports manual, automatic, and (future)
-time-based triggers via the triggered_by label. Adding a stage or a
-future HIS integration trigger only means updating this file.
+hardcode stage logic.
 
-NOTE: GENERAL_EDUCATION and DEPARTMENT_INTRO were merged into
-ADMISSION (see migration 6c4f2b8e9a1d) - they no longer appear as
-selectable journey_stages rows, so no transitions reference them
-anymore. The enum members still exist on JourneyStageCode for
-backward-compat, but this state machine treats them as unreachable.
+NOTE: GENERAL_EDUCATION/DEPARTMENT_INTRO (merged into ADMISSION, see
+migration 6c4f2b8e9a1d) and PROCEDURE ("حین عمل", merged into
+BEFORE_PROCEDURE, see migration 7c4e9a2f1b6d) no longer appear as
+selectable journey_stages rows, so no transitions reference them.
+Operating-room-related education now lives in BEFORE_PROCEDURE.
 """
 
 import uuid
@@ -41,11 +40,8 @@ ALLOWED_TRANSITIONS: dict[JourneyStageCode, list[JourneyStageCode]] = {
         JourneyStageCode.DISCHARGE,
     ],
     JourneyStageCode.BEFORE_PROCEDURE: [
-        JourneyStageCode.PROCEDURE,
-        JourneyStageCode.DAILY_INPATIENT,
-    ],
-    JourneyStageCode.PROCEDURE: [
         JourneyStageCode.AFTER_PROCEDURE,
+        JourneyStageCode.DAILY_INPATIENT,
     ],
     JourneyStageCode.AFTER_PROCEDURE: [
         JourneyStageCode.DAILY_INPATIENT,

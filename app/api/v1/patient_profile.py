@@ -1,4 +1,5 @@
 # app/api/v1/patient_profile.py
+# app/api/v1/patient_profile.py
 """
 app/api/v1/patient_profile.py
 
@@ -61,6 +62,7 @@ def _to_response(
         current_stage_name=journey.current_stage.value if journey else None,
         disease_name=journey.disease.name if journey and journey.disease else None,
         treatment_name=journey.treatment.name if journey and journey.treatment else None,
+        procedure_name=journey.procedure.name if journey and journey.procedure else None,
         age=journey.age if journey else None,
         gender=journey.gender if journey else None,
         has_surgery=journey.has_surgery if journey else None,

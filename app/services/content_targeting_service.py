@@ -1,28 +1,31 @@
+# app/services/content_targeting_service.py
 """
 app/services/content_targeting_service.py
 
 Resolves published lessons AND stage-level quiz questions for a
 patient journey.
 
-Lessons: structural match (journey_stage + department_type) with
-hospital-level override resolution and optional ContentTargetingRule
-filtering - see get_lessons_for_stage.
+Resolution layers, most to least specific:
+  1. Hospital-level lesson override (Lesson.override_level=HOSPITAL)
+  2. Procedure-specific content (EducationSection.procedure_id /
+     QuizQuestion.procedure_id == journey.procedure_id)
+  3. Department-general content (procedure_id IS NULL)
+  4. Global content (department_type_id IS NULL)
+
+Layers 2/3 are an OVERRIDE, not a merge: for a given
+(journey_stage, department_type) combination, if the patient has a
+procedure_id and ANY section/quiz exists scoped to that procedure,
+ONLY those are shown; otherwise the department-general ones are used.
+This mirrors the existing hospital-override pattern and needs no AI -
+matching is purely by department_type_id/procedure_id/journey_stage
+foreign keys.
 
 get_journey_timeline() builds the patient's home-page journey view:
-every JourneyStage up to and including the patient's current stage
-(ordered by JourneyStage.display_order), each carrying its own
-lessons AND its own stage-level quiz (quiz now lives inside its
-stage, not as a separate page-wide block). A stage is "completed"
-once every one of its lessons has a COMPLETED ProgressRecord for this
-patient; a stage is "unlocked" once the previous stage in the
-timeline is completed (the first stage is always unlocked). The
-template uses is_completed/is_unlocked to gate access - later stages
-stay collapsed/locked until the patient has actually gone through the
-earlier ones.
-
-Stage quiz resolution has no hospital-override or targeting-rule
-layer (not requested / not needed yet) - keep it simple until a real
-need for per-hospital quiz overrides shows up.
+every JourneyStage up to and including the patient's current stage,
+each carrying its own lessons AND its own stage-level quiz. A stage
+is "completed" once every one of its lessons has a COMPLETED
+ProgressRecord; a stage is "unlocked" once the previous stage in the
+timeline is completed (the first stage is always unlocked).
 """
 
 import uuid
@@ -68,12 +71,6 @@ def _rule_matches(
 
 
 def _resolve_effective_lesson(db: Session, base_lesson: Lesson, hospital_id: uuid.UUID) -> Lesson | None:
-    """
-    Returns the lesson that should actually be shown for this
-    hospital: the hospital's published override if one exists,
-    otherwise the base lesson IF it is published, otherwise None
-    (nothing to show).
-    """
     override = (
         db.query(Lesson)
         .filter(
@@ -89,15 +86,14 @@ def _resolve_effective_lesson(db: Session, base_lesson: Lesson, hospital_id: uui
     return base_lesson if base_lesson.is_published else None
 
 
-def get_lessons_for_stage(
+def _sections_for_stage(
     db: Session,
-    journey: PatientJourneyProfile,
     stage_code: JourneyStageCode,
-    hospital_id: uuid.UUID,
-    department_id: uuid.UUID,
     department_type_id: uuid.UUID | None,
-) -> list[Lesson]:
-    sections = (
+    treatment_id: uuid.UUID | None,
+    procedure_filter,
+) -> list[EducationSection]:
+    return (
         db.query(EducationSection)
         .filter(
             EducationSection.journey_stage.has(code=stage_code),
@@ -108,12 +104,46 @@ def get_lessons_for_stage(
             ),
             or_(
                 EducationSection.treatment_id.is_(None),
-                EducationSection.treatment_id == journey.treatment_id,
+                EducationSection.treatment_id == treatment_id,
             ),
+            procedure_filter,
         )
         .order_by(EducationSection.display_order)
         .all()
     )
+
+
+def _resolve_sections(
+    db: Session,
+    stage_code: JourneyStageCode,
+    department_type_id: uuid.UUID | None,
+    treatment_id: uuid.UUID | None,
+    procedure_id: uuid.UUID | None,
+) -> list[EducationSection]:
+    if procedure_id:
+        procedure_sections = _sections_for_stage(
+            db, stage_code, department_type_id, treatment_id,
+            EducationSection.procedure_id == procedure_id,
+        )
+        if procedure_sections:
+            return procedure_sections
+
+    return _sections_for_stage(
+        db, stage_code, department_type_id, treatment_id,
+        EducationSection.procedure_id.is_(None),
+    )
+
+
+def get_lessons_for_stage(
+    db: Session,
+    journey: PatientJourneyProfile,
+    stage_code: JourneyStageCode,
+    hospital_id: uuid.UUID,
+    department_id: uuid.UUID,
+    department_type_id: uuid.UUID | None,
+    procedure_id: uuid.UUID | None = None,
+) -> list[Lesson]:
+    sections = _resolve_sections(db, stage_code, department_type_id, journey.treatment_id, procedure_id)
 
     matched_lessons: list[Lesson] = []
 
@@ -147,14 +177,16 @@ def get_lessons_for_journey(
     department_type_id: uuid.UUID | None,
 ) -> list[Lesson]:
     return get_lessons_for_stage(
-        db, journey, journey.current_stage, hospital_id, department_id, department_type_id
+        db, journey, journey.current_stage, hospital_id, department_id, department_type_id,
+        procedure_id=journey.procedure_id,
     )
 
 
-def get_stage_quiz_for_stage(
+def _quiz_for_stage(
     db: Session,
     stage_code: JourneyStageCode,
     department_type_id: uuid.UUID | None,
+    procedure_filter,
 ) -> list[QuizQuestion]:
     return (
         db.query(QuizQuestion)
@@ -164,10 +196,25 @@ def get_stage_quiz_for_stage(
                 QuizQuestion.department_type_id.is_(None),
                 QuizQuestion.department_type_id == department_type_id,
             ),
+            procedure_filter,
         )
         .order_by(QuizQuestion.display_order)
         .all()
     )
+
+
+def get_stage_quiz_for_stage(
+    db: Session,
+    stage_code: JourneyStageCode,
+    department_type_id: uuid.UUID | None,
+    procedure_id: uuid.UUID | None = None,
+) -> list[QuizQuestion]:
+    if procedure_id:
+        procedure_questions = _quiz_for_stage(db, stage_code, department_type_id, QuizQuestion.procedure_id == procedure_id)
+        if procedure_questions:
+            return procedure_questions
+
+    return _quiz_for_stage(db, stage_code, department_type_id, QuizQuestion.procedure_id.is_(None))
 
 
 def get_stage_quiz_for_journey(
@@ -175,7 +222,7 @@ def get_stage_quiz_for_journey(
     journey: PatientJourneyProfile,
     department_type_id: uuid.UUID | None,
 ) -> list[QuizQuestion]:
-    return get_stage_quiz_for_stage(db, journey.current_stage, department_type_id)
+    return get_stage_quiz_for_stage(db, journey.current_stage, department_type_id, procedure_id=journey.procedure_id)
 
 
 def get_journey_timeline(
@@ -186,13 +233,6 @@ def get_journey_timeline(
     department_id: uuid.UUID,
     department_type_id: uuid.UUID | None,
 ) -> list[dict]:
-    """
-    Ordered "journey so far" view for the patient home page: one
-    entry per JourneyStage with display_order <= the patient's
-    current stage, each with its own lessons (+ completion state) and
-    its own stage-level quiz. A stage with neither lessons nor quiz
-    questions is skipped entirely.
-    """
     current_stage_row = db.query(JourneyStage).filter(JourneyStage.code == journey.current_stage).first()
     if not current_stage_row:
         return []
@@ -205,11 +245,14 @@ def get_journey_timeline(
     )
 
     timeline: list[dict] = []
-    previous_completed = True  # the first visible stage is always unlocked
+    previous_completed = True
 
     for stage in stages:
-        lessons = get_lessons_for_stage(db, journey, stage.code, hospital_id, department_id, department_type_id)
-        quiz_questions = get_stage_quiz_for_stage(db, stage.code, department_type_id)
+        lessons = get_lessons_for_stage(
+            db, journey, stage.code, hospital_id, department_id, department_type_id,
+            procedure_id=journey.procedure_id,
+        )
+        quiz_questions = get_stage_quiz_for_stage(db, stage.code, department_type_id, procedure_id=journey.procedure_id)
 
         if not lessons and not quiz_questions:
             continue
