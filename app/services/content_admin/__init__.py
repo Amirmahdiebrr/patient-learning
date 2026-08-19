@@ -10,6 +10,8 @@ from app.services.content_admin import (
     quiz_service,
     targeting_rule_service,
     procedure_service,
+    procedure_classifier_service,
+    procedure_bulk_import_service,
 )
 
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "quiz_service",
     "targeting_rule_service",
     "procedure_service",
+    "procedure_classifier_service",
+    "procedure_bulk_import_service",
 ]
