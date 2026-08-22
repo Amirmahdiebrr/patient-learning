@@ -142,6 +142,8 @@ async def patient_self_register(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد یا به این بیمارستان تعلق ندارد.")
 
     if payload.procedure_id:
+        # همان محدودیت onboarding.py: عمل انتخابی باید متعلق به همان
+        # نوع بخشی باشد که بیمار در آن ثبت‌نام می‌کند.
         procedure = db.query(Procedure).filter(Procedure.id == payload.procedure_id).first()
         if not procedure or procedure.department_type_id != department.department_type_id:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "این عمل متعلق به این بخش نیست.")
@@ -168,7 +170,10 @@ async def patient_self_register(
     )
     db.add(registration)
 
-    target_stage = JourneyStageCode.BEFORE_PROCEDURE if payload.has_surgery else JourneyStageCode.ADMISSION
+    # بیمارانی که قرار است عمل جراحی داشته باشند، اول وارد «آشنایی با
+    # عمل» می‌شوند (محتوای مخصوص همان عملی که انتخاب کرده‌اند) و بعد
+    # از آن به «قبل از عمل» می‌روند - نه مستقیم.
+    target_stage = JourneyStageCode.PROCEDURE_INTRO if payload.has_surgery else JourneyStageCode.ADMISSION
     journey = PatientJourneyProfile(
         patient_access_profile_id=profile.id,
         disease_id=payload.disease_id,

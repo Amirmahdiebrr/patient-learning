@@ -41,6 +41,7 @@ class JourneyStageCode(str, PyEnum):
     GENERAL_EDUCATION = "general_education"  # legacy, merged into ADMISSION
     DEPARTMENT_INTRO = "department_intro"    # legacy, merged into ADMISSION
     ADMISSION = "admission"
+    PROCEDURE_INTRO = "procedure_intro"      # آشنایی با عمل - قبل از BEFORE_PROCEDURE
     BEFORE_PROCEDURE = "before_procedure"
     PROCEDURE = "procedure"                  # legacy, merged into BEFORE_PROCEDURE - see migration 7c4e9a2f1b6d
     AFTER_PROCEDURE = "after_procedure"

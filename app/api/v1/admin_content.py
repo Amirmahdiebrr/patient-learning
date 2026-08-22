@@ -272,11 +272,14 @@ async def create_education_section(
 async def list_education_sections(
     journey_stage_id: uuid.UUID | None = None,
     department_type_id: str | None = None,
+    procedure_id: uuid.UUID | None = None,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
 ):
     parsed_id, is_general = _parse_department_type_id(department_type_id)
-    sections = section_service.list_sections(db, journey_stage_id, parsed_id, is_general, include_inactive)
+    sections = section_service.list_sections(
+        db, journey_stage_id, parsed_id, is_general, include_inactive, procedure_id=procedure_id,
+    )
     return [_to_section_response(s) for s in sections]
 
 

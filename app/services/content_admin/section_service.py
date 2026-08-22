@@ -6,6 +6,18 @@ EducationSection CRUD. journey_stage/department_type/treatment/
 procedure existence + consistency checks live here so the route
 layer stays a thin validation+call wrapper.
 
+list_sections() filters by procedure_id with an EXACT match, not the
+patient-facing override/fallback semantics used in
+content_targeting_service.py: when the admin panel has a specific
+procedure selected, only sections scoped to exactly that procedure_id
+are returned; when no procedure is selected ("عمومی"), only
+department-general sections (procedure_id IS NULL) are returned. This
+is deliberately a plain filter (not a "show department-general if
+nothing procedure-specific exists" fallback) - the content builder
+needs an exact, predictable view of what's attached to the currently
+selected procedure so admins can tell at a glance whether a procedure
+has its own content yet.
+
 delete_section() cascades: deleting a section also deletes every
 lesson inside it, after first clearing the non-cascaded FKs
 (favorite_records, progress_records, quiz_attempts, feedback_records)
@@ -87,6 +99,7 @@ def list_sections(
     department_type_id: uuid.UUID | None,
     department_type_is_general: bool,
     include_inactive: bool,
+    procedure_id: uuid.UUID | None = None,
 ) -> list[EducationSection]:
     query = db.query(EducationSection)
     if not include_inactive:
@@ -97,6 +110,14 @@ def list_sections(
         query = query.filter(EducationSection.department_type_id.is_(None))
     elif department_type_id:
         query = query.filter(EducationSection.department_type_id == department_type_id)
+
+    # Exact-match procedure filter for the admin content builder - see
+    # module docstring for why this differs from the patient-facing
+    # fallback logic in content_targeting_service.py.
+    if procedure_id:
+        query = query.filter(EducationSection.procedure_id == procedure_id)
+    else:
+        query = query.filter(EducationSection.procedure_id.is_(None))
 
     return query.order_by(EducationSection.display_order).all()
 

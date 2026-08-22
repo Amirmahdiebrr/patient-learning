@@ -8,15 +8,19 @@ patient journey.
 Resolution layers, most to least specific:
   1. Hospital-level lesson override (Lesson.override_level=HOSPITAL)
   2. Procedure-specific content (EducationSection.procedure_id /
-     QuizQuestion.procedure_id == journey.procedure_id)
+     QuizQuestion.procedure_id matches ANY of the patient's effective
+     procedure ids - see patient_procedure_service.get_effective_procedure_ids,
+     which unions their onboarding procedure_id with whatever they've
+     explicitly picked from their own profile via /my-procedures)
   3. Department-general content (procedure_id IS NULL)
   4. Global content (department_type_id IS NULL)
 
 Layers 2/3 are an OVERRIDE, not a merge: for a given
-(journey_stage, department_type) combination, if the patient has a
-procedure_id and ANY section/quiz exists scoped to that procedure,
-ONLY those are shown; otherwise the department-general ones are used.
-This mirrors the existing hospital-override pattern and needs no AI -
+(journey_stage, department_type) combination, if the patient has any
+effective procedure ids AND at least one section/quiz exists scoped
+to any of them, ONLY those (unioned across all matching procedures)
+are shown; otherwise the department-general ones are used. This
+mirrors the existing hospital-override pattern and needs no AI -
 matching is purely by department_type_id/procedure_id/journey_stage
 foreign keys.
 
@@ -45,6 +49,7 @@ from app.infrastructure.db.models import (
     ProgressRecord,
     LessonProgressStatus,
 )
+from app.services.patient_procedure_service import get_effective_procedure_ids
 
 
 def _rule_matches(
@@ -118,12 +123,12 @@ def _resolve_sections(
     stage_code: JourneyStageCode,
     department_type_id: uuid.UUID | None,
     treatment_id: uuid.UUID | None,
-    procedure_id: uuid.UUID | None,
+    procedure_ids: list[uuid.UUID] | None,
 ) -> list[EducationSection]:
-    if procedure_id:
+    if procedure_ids:
         procedure_sections = _sections_for_stage(
             db, stage_code, department_type_id, treatment_id,
-            EducationSection.procedure_id == procedure_id,
+            EducationSection.procedure_id.in_(procedure_ids),
         )
         if procedure_sections:
             return procedure_sections
@@ -141,11 +146,12 @@ def get_lessons_for_stage(
     hospital_id: uuid.UUID,
     department_id: uuid.UUID,
     department_type_id: uuid.UUID | None,
-    procedure_id: uuid.UUID | None = None,
+    procedure_ids: list[uuid.UUID] | None = None,
 ) -> list[Lesson]:
-    sections = _resolve_sections(db, stage_code, department_type_id, journey.treatment_id, procedure_id)
+    sections = _resolve_sections(db, stage_code, department_type_id, journey.treatment_id, procedure_ids)
 
     matched_lessons: list[Lesson] = []
+    seen_lesson_ids: set[uuid.UUID] = set()
 
     for section in sections:
         for lesson in section.lessons:
@@ -156,15 +162,18 @@ def get_lessons_for_stage(
             if effective_lesson is None:
                 continue
 
+            matched = False
             if not lesson.targeting_rules:
-                matched_lessons.append(effective_lesson)
-                continue
-
-            if any(
+                matched = True
+            elif any(
                 _rule_matches(rule, journey, hospital_id, department_id)
                 for rule in lesson.targeting_rules
             ):
+                matched = True
+
+            if matched and effective_lesson.id not in seen_lesson_ids:
                 matched_lessons.append(effective_lesson)
+                seen_lesson_ids.add(effective_lesson.id)
 
     return matched_lessons
 
@@ -176,9 +185,10 @@ def get_lessons_for_journey(
     department_id: uuid.UUID,
     department_type_id: uuid.UUID | None,
 ) -> list[Lesson]:
+    procedure_ids = get_effective_procedure_ids(db, journey)
     return get_lessons_for_stage(
         db, journey, journey.current_stage, hospital_id, department_id, department_type_id,
-        procedure_id=journey.procedure_id,
+        procedure_ids=procedure_ids,
     )
 
 
@@ -207,10 +217,12 @@ def get_stage_quiz_for_stage(
     db: Session,
     stage_code: JourneyStageCode,
     department_type_id: uuid.UUID | None,
-    procedure_id: uuid.UUID | None = None,
+    procedure_ids: list[uuid.UUID] | None = None,
 ) -> list[QuizQuestion]:
-    if procedure_id:
-        procedure_questions = _quiz_for_stage(db, stage_code, department_type_id, QuizQuestion.procedure_id == procedure_id)
+    if procedure_ids:
+        procedure_questions = _quiz_for_stage(
+            db, stage_code, department_type_id, QuizQuestion.procedure_id.in_(procedure_ids),
+        )
         if procedure_questions:
             return procedure_questions
 
@@ -222,7 +234,8 @@ def get_stage_quiz_for_journey(
     journey: PatientJourneyProfile,
     department_type_id: uuid.UUID | None,
 ) -> list[QuizQuestion]:
-    return get_stage_quiz_for_stage(db, journey.current_stage, department_type_id, procedure_id=journey.procedure_id)
+    procedure_ids = get_effective_procedure_ids(db, journey)
+    return get_stage_quiz_for_stage(db, journey.current_stage, department_type_id, procedure_ids=procedure_ids)
 
 
 def get_journey_timeline(
@@ -244,15 +257,17 @@ def get_journey_timeline(
         .all()
     )
 
+    procedure_ids = get_effective_procedure_ids(db, journey)
+
     timeline: list[dict] = []
     previous_completed = True
 
     for stage in stages:
         lessons = get_lessons_for_stage(
             db, journey, stage.code, hospital_id, department_id, department_type_id,
-            procedure_id=journey.procedure_id,
+            procedure_ids=procedure_ids,
         )
-        quiz_questions = get_stage_quiz_for_stage(db, stage.code, department_type_id, procedure_id=journey.procedure_id)
+        quiz_questions = get_stage_quiz_for_stage(db, stage.code, department_type_id, procedure_ids=procedure_ids)
 
         if not lessons and not quiz_questions:
             continue

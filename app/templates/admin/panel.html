@@ -451,6 +451,7 @@
         Object.keys(quizManagers).forEach(function (k) { if (k.indexOf("secquiz-") === 0) delete quizManagers[k]; });
 
         let url = `/admin/education-sections?journey_stage_id=${state.stageId}&department_type_id=${state.contentDepartmentTypeId}`;
+        if (state.procedureId) url += `&procedure_id=${state.procedureId}`;
         const sections = await api(url);
         sectionList.innerHTML = sections.length === 0
             ? '<p style="color:#8CA0B3; font-size:13.5px;">هنوز برچسبی برای این ترکیب ساخته نشده.</p>'

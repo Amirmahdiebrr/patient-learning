@@ -38,6 +38,20 @@ from app.core.encryption import blind_index
 
 router = APIRouter(prefix="/admin", tags=["admin_patient_report"])
 
+STAGE_DISPLAY_NAMES = {
+    "welcome": "خوش‌آمدگویی",
+    "admission": "پذیرش در بخش",
+    "procedure_intro": "آشنایی با عمل",
+    "before_procedure": "قبل از عمل",
+    "procedure": "حین عمل",
+    "after_procedure": "بعد از عمل",
+    "daily_inpatient": "آموزش روزانه‌ی بستری",
+    "discharge": "ترخیص",
+    "home_care": "مراقبت در منزل",
+    "follow_up": "پیگیری",
+    "long_term_monitoring": "پایش بلندمدت",
+}
+
 
 def _resolve_profile_hospital_id(db: Session, profile: PatientAccessProfile) -> uuid.UUID | None:
     if profile.hospital_id:
@@ -135,18 +149,7 @@ async def get_patient_report(
         if stage_code and (not journey or journey.current_stage.value != stage_code):
             continue
 
-        stage_display_names = {
-            "welcome": "خوش‌آمدگویی",
-            "admission": "پذیرش در بخش",
-            "before_procedure": "قبل از عمل",
-            "procedure": "حین عمل",
-            "after_procedure": "بعد از عمل",
-            "daily_inpatient": "آموزش روزانه‌ی بستری",
-            "discharge": "ترخیص",
-            "home_care": "مراقبت در منزل",
-            "follow_up": "پیگیری",
-            "long_term_monitoring": "پایش بلندمدت",
-        }
+        current_stage_value = journey.current_stage.value if journey else "welcome"
 
         rows.append(PatientReportRowResponse(
             patient_access_profile_id=profile.id,
@@ -162,8 +165,8 @@ async def get_patient_report(
             has_surgery=journey.has_surgery if journey else None,
             age=journey.age if journey else None,
             gender=journey.gender if journey else None,
-            current_stage_code=journey.current_stage.value if journey else "welcome",
-            current_stage_name=stage_display_names.get(journey.current_stage.value if journey else "welcome", ""),
+            current_stage_code=current_stage_value,
+            current_stage_name=STAGE_DISPLAY_NAMES.get(current_stage_value, current_stage_value),
             onboarding_completed=bool(journey and journey.onboarding_completed_at),
             registered_at=reg.created_at,
             last_seen_at=profile.last_seen_at,

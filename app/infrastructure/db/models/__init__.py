@@ -17,6 +17,7 @@ from app.infrastructure.db.models.patient_interaction import (
     ProgressRecord, LessonProgressStatus, FavoriteRecord, QuizAttempt, FeedbackRecord,
 )
 from app.infrastructure.db.models.patient_journey import PatientJourneyProfile
+from app.infrastructure.db.models.patient_procedure_selection import PatientProcedureSelection
 from app.infrastructure.db.models.patient_registration import PatientRegistration
 from app.infrastructure.db.models.audit_log import AuditLog
 from app.infrastructure.db.models.followup import FollowUpTask, FollowUpChannel, FollowUpStatus
@@ -31,7 +32,7 @@ __all__ = [
     "Lesson", "MediaAsset", "MediaType", "QuizQuestion", "QuizOption",
     "ContentTargetingRule", "LessonOverrideLevel", "Procedure",
     "ProgressRecord", "LessonProgressStatus", "FavoriteRecord", "QuizAttempt", "FeedbackRecord",
-    "PatientJourneyProfile", "PatientRegistration", "AuditLog",
+    "PatientJourneyProfile", "PatientProcedureSelection", "PatientRegistration", "AuditLog",
     "FollowUpTask", "FollowUpChannel", "FollowUpStatus",
     "PatientReferral", "ReferralSource", "ReferralStatus", "HospitalApiKey",
     "AdminUser", "Role", "RoleCode", "AdminRoleAssignment",

@@ -5,7 +5,7 @@ scripts/seed_lookup_data.py
 One-time (idempotent) seed script:
 - journey_stages: fixed lookup table (never created via admin panel)
 - roles: fixed 5-row lookup table
-- optionally bootstraps the first super_admin from env vars
+- optionally bootstraps the first super_admin
 
 Run with:
     python -m scripts.seed_lookup_data
@@ -31,13 +31,16 @@ logger = get_logger(__name__)
 
 # NOTE: GENERAL_EDUCATION and DEPARTMENT_INTRO were merged into
 # ADMISSION (migration 6c4f2b8e9a1d); PROCEDURE ("حین عمل") was merged
-# into BEFORE_PROCEDURE (migration 7c4e9a2f1b6d). All three enum
-# members still exist on JourneyStageCode for backward-compat, but no
-# journey_stages row should be created for any of them.
+# into BEFORE_PROCEDURE (migration 7c4e9a2f1b6d). All enum members
+# still exist on JourneyStageCode for backward-compat, but no
+# journey_stages row should be created for any retired code.
+# PROCEDURE_INTRO ("آشنایی با عمل", migration 9a1c5e7f2b4d) sits
+# between ADMISSION and BEFORE_PROCEDURE.
 JOURNEY_STAGES = [
     (JourneyStageCode.WELCOME, "خوش‌آمدگویی", 1),
     (JourneyStageCode.ADMISSION, "پذیرش در بخش", 2),
-    (JourneyStageCode.BEFORE_PROCEDURE, "قبل از عمل", 3),
+    (JourneyStageCode.PROCEDURE_INTRO, "آشنایی با عمل", 3),
+    (JourneyStageCode.BEFORE_PROCEDURE, "قبل از عمل", 4),
     (JourneyStageCode.AFTER_PROCEDURE, "بعد از عمل", 5),
     (JourneyStageCode.DAILY_INPATIENT, "آموزش روزانه‌ی بستری", 6),
     (JourneyStageCode.DISCHARGE, "ترخیص", 7),

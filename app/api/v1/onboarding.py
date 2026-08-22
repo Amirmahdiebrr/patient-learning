@@ -89,6 +89,9 @@ async def onboarding_submit(
             candidate = uuid.UUID(procedure_id)
         except ValueError:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "شناسه‌ی عمل نامعتبر است.")
+        # عمل انتخابی باید حتماً متعلق به همان نوع بخشی باشد که بیمار
+        # در آن بستری است - این همان محدودیتی است که تضمین می‌کند
+        # بیمار فقط می‌تواند از بین اعمال مخصوص بخش خودش انتخاب کند.
         procedure = db.query(Procedure).filter(Procedure.id == candidate).first()
         if not procedure or procedure.department_type_id != context.department.department_type_id:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "این عمل متعلق به این بخش نیست.")
@@ -121,7 +124,10 @@ async def onboarding_submit(
 
     db.commit()
 
-    target_stage = JourneyStageCode.BEFORE_PROCEDURE if journey.has_surgery else JourneyStageCode.ADMISSION
+    # بیمارانی که قرار است عمل جراحی داشته باشند، اول وارد «آشنایی با
+    # عمل» می‌شوند (محتوای مخصوص همان عملی که بالا انتخاب کردند) و
+    # بعد از آن به «قبل از عمل» می‌روند - نه مستقیم.
+    target_stage = JourneyStageCode.PROCEDURE_INTRO if journey.has_surgery else JourneyStageCode.ADMISSION
 
     try:
         transition_stage(

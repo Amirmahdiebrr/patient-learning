@@ -11,6 +11,14 @@ migration 6c4f2b8e9a1d) and PROCEDURE ("حین عمل", merged into
 BEFORE_PROCEDURE, see migration 7c4e9a2f1b6d) no longer appear as
 selectable journey_stages rows, so no transitions reference them.
 Operating-room-related education now lives in BEFORE_PROCEDURE.
+
+PROCEDURE_INTRO ("آشنایی با عمل", see migration 9a1c5e7f2b4d) sits
+between ADMISSION and BEFORE_PROCEDURE: once the patient/nurse has
+picked a specific procedure during onboarding (procedure_id, always
+scoped to the patient's own department_type - see onboarding.py /
+patient_self_auth.py), the patient lands here first to read
+procedure-specific content before the general pre-operation
+preparation content in BEFORE_PROCEDURE.
 """
 
 import uuid
@@ -32,12 +40,18 @@ class InvalidStageTransitionError(Exception):
 ALLOWED_TRANSITIONS: dict[JourneyStageCode, list[JourneyStageCode]] = {
     JourneyStageCode.WELCOME: [
         JourneyStageCode.ADMISSION,
+        JourneyStageCode.PROCEDURE_INTRO,
         JourneyStageCode.BEFORE_PROCEDURE,
     ],
     JourneyStageCode.ADMISSION: [
+        JourneyStageCode.PROCEDURE_INTRO,
         JourneyStageCode.BEFORE_PROCEDURE,
         JourneyStageCode.DAILY_INPATIENT,
         JourneyStageCode.DISCHARGE,
+    ],
+    JourneyStageCode.PROCEDURE_INTRO: [
+        JourneyStageCode.BEFORE_PROCEDURE,
+        JourneyStageCode.DAILY_INPATIENT,
     ],
     JourneyStageCode.BEFORE_PROCEDURE: [
         JourneyStageCode.AFTER_PROCEDURE,

@@ -1,0 +1,97 @@
+{# app/templates/patient_procedures.html #}
+{% extends "base.html" %}
+{% block title %}نوع عمل من | CuraLink{% endblock %}
+{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
+{% block content %}
+<div class="cl-container" style="max-width:640px;">
+    {% include "patient_back_button.html" %}
+
+    <div class="cl-card">
+        <h1>نوع عمل / اقدام من</h1>
+        <p class="cl-sub">
+            بخش {{ department.name }}. یک یا چند مورد از عمل‌ها/اقداماتی که برایتان انجام شده یا قرار است انجام شود را انتخاب کنید
+            تا آموزش‌های قبل و بعد از عمل، دقیقاً متناسب با همان‌ها نمایش داده شود. هر زمان می‌توانید این انتخاب را عوض کنید.
+        </p>
+
+        {% if not has_department_type %}
+        <p class="cl-admin-empty">این بخش نوع مشخصی ندارد؛ آموزش عمومی همین بخش برای شما نمایش داده می‌شود.</p>
+        {% else %}
+        <div id="procedure-options" class="cl-admin-section-list">
+            <p class="cl-admin-empty">در حال بارگذاری...</p>
+        </div>
+
+        <p id="procedure-message" style="font-size:13.5px; display:none;"></p>
+        <button id="save-procedures-btn" class="cl-btn" style="margin-top:10px;">ذخیره‌ی انتخاب</button>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const optionsEl = document.getElementById("procedure-options");
+    const messageEl = document.getElementById("procedure-message");
+    const saveBtn = document.getElementById("save-procedures-btn");
+    if (!optionsEl || !saveBtn) return;
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    async function loadOptions() {
+        const res = await fetch("/patient-auth/procedures/options");
+        if (!res.ok) {
+            optionsEl.innerHTML = '<p class="cl-admin-empty">بارگذاری با خطا مواجه شد.</p>';
+            return;
+        }
+        const options = await res.json();
+
+        if (options.length === 0) {
+            optionsEl.innerHTML = '<p class="cl-admin-empty">هنوز عملی برای این بخش ثبت نشده است.</p>';
+            saveBtn.style.display = "none";
+            return;
+        }
+
+        optionsEl.innerHTML = options.map(function (o) {
+            const checked = o.is_selected ? "checked" : "";
+            return `<label class="cl-radio-group" style="justify-content:flex-start; gap:10px; margin-bottom:10px;">
+                <input type="checkbox" value="${o.id}" data-procedure-checkbox ${checked}>
+                <span>${escapeHtml(o.name)}</span>
+            </label>`;
+        }).join("");
+    }
+
+    saveBtn.addEventListener("click", async function () {
+        const selectedIds = Array.from(optionsEl.querySelectorAll("[data-procedure-checkbox]:checked"))
+            .map(function (el) { return el.value; });
+
+        try {
+            const res = await fetch("/patient-auth/procedures/selected", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ procedure_ids: selectedIds }),
+            });
+            const data = await res.json().catch(function () { return null; });
+
+            messageEl.style.display = "block";
+            if (res.ok) {
+                messageEl.style.color = "var(--success)";
+                messageEl.textContent = "انتخاب شما ذخیره شد. آموزش‌های مرتبط به‌روزرسانی شدند.";
+            } else {
+                messageEl.style.color = "var(--warn)";
+                messageEl.textContent = (data && data.detail) || "خطا در ذخیره‌سازی.";
+            }
+        } catch (err) {
+            messageEl.style.display = "block";
+            messageEl.style.color = "var(--warn)";
+            messageEl.textContent = "ارتباط با سرور برقرار نشد.";
+        }
+    });
+
+    loadOptions();
+})();
+</script>
+{% endblock %}

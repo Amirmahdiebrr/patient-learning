@@ -30,8 +30,8 @@ MIN_QUIZ_ATTEMPTS_FOR_FLAG = 3
 STAGE_DISPLAY_NAMES = {
     "welcome": "خوش‌آمدگویی",
     "admission": "پذیرش در بخش",
+    "procedure_intro": "آشنایی با عمل",
     "before_procedure": "قبل از عمل",
-    "procedure": "حین عمل",
     "after_procedure": "بعد از عمل",
     "daily_inpatient": "آموزش روزانه‌ی بستری",
     "discharge": "ترخیص",
