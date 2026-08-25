@@ -19,6 +19,11 @@ scoped to the patient's own department_type - see onboarding.py /
 patient_self_auth.py), the patient lands here first to read
 procedure-specific content before the general pre-operation
 preparation content in BEFORE_PROCEDURE.
+
+FOLLOW_UP and LONG_TERM_MONITORING were merged into HOME_CARE, renamed
+"پیگیری و مراقبت در منزل" (see migration f1a4c7e9b2d6) - they no
+longer appear as selectable journey_stages rows either, so HOME_CARE
+is now the final stage in the timeline (no outgoing transitions).
 """
 
 import uuid
@@ -67,13 +72,7 @@ ALLOWED_TRANSITIONS: dict[JourneyStageCode, list[JourneyStageCode]] = {
     JourneyStageCode.DISCHARGE: [
         JourneyStageCode.HOME_CARE,
     ],
-    JourneyStageCode.HOME_CARE: [
-        JourneyStageCode.FOLLOW_UP,
-    ],
-    JourneyStageCode.FOLLOW_UP: [
-        JourneyStageCode.LONG_TERM_MONITORING,
-    ],
-    JourneyStageCode.LONG_TERM_MONITORING: [],
+    JourneyStageCode.HOME_CARE: [],
 }
 
 

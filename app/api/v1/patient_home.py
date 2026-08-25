@@ -7,6 +7,12 @@ to and including the patient's current stage, each stage carrying its
 own lessons and its own stage-level quiz, with sequential
 unlock/completion state. Redirects back to onboarding if not
 completed yet.
+
+Also passes patient_first_name for the personalized welcome hero at
+the top of the page - always available by the time /home is reached,
+since onboarding_completed_at is required to get past the redirect
+below, and onboarding always creates the PatientRegistration row
+first (see onboarding.py / patient_self_auth.py).
 """
 
 from fastapi import APIRouter, Request, Depends
@@ -43,6 +49,9 @@ async def patient_home(
         department_type_id=department.department_type_id,
     )
 
+    registration = context.patient_profile.registration
+    patient_first_name = registration.first_name if registration else None
+
     return templates.TemplateResponse(
         request,
         "patient_home.html",
@@ -51,6 +60,7 @@ async def patient_home(
             "timeline": timeline,
             "journey": journey,
             "hospital": context.hospital,
-            "department": department,
+            "department": context.department,
+            "patient_first_name": patient_first_name,
         },
     )

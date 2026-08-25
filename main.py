@@ -15,6 +15,7 @@ from app.core.templates import templates
 from app.services.event_handlers import register_all_event_handlers
 from app.api.middleware.logging_middleware import RequestLoggingMiddleware
 from app.api.middleware.security_headers_middleware import SecurityHeadersMiddleware
+from app.api.middleware.ghost_banner_middleware import GhostBannerMiddleware
 
 from app.api.v1.entry import router as entry_router
 from app.api.v1.welcome import router as welcome_router
@@ -42,6 +43,7 @@ from app.api.v1.admin_followup import router as admin_followup_router
 from app.api.v1.admin_analytics import router as admin_analytics_router
 from app.api.v1.admin_referrals import router as admin_referrals_router
 from app.api.v1.admin_nurses import router as admin_nurses_router
+from app.api.v1.admin_ghost_browser import router as admin_ghost_browser_router
 from app.api.v1.referrals_public import router as referrals_public_router
 from app.api.v1.admin_panel import router as admin_panel_router
 from app.api.v1.nurse_auth import router as nurse_auth_router
@@ -54,6 +56,7 @@ app = FastAPI(title="CuraLink Patient Education Platform", version="0.1.0")
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(GhostBannerMiddleware)
 
 os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
 
@@ -69,7 +72,8 @@ ALL_ROUTERS = [
     admin_lesson_draft_router,
     admin_media_upload_router, admin_patient_report_router, admin_audit_log_router,
     admin_patient_journey_router, admin_followup_router, admin_analytics_router,
-    admin_referrals_router, admin_nurses_router, referrals_public_router, admin_panel_router,
+    admin_referrals_router, admin_nurses_router, admin_ghost_browser_router,
+    referrals_public_router, admin_panel_router,
     nurse_auth_router, nurse_dashboard_router,
 ]
 

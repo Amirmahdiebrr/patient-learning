@@ -105,6 +105,15 @@ class Settings(BaseSettings):
     SEARCH_HASH_KEY: str = Field(default="")
 
     # ==========================
+    # Ghost mode (super_admin QA browsing) - see ghost_session_service.py.
+    # A ghost session carries this cookie (alongside the normal patient
+    # profile cookie) purely as a marker for GhostBannerMiddleware to
+    # know when to inject the "you are in ghost mode" banner - it is
+    # never used for authentication/authorization decisions itself.
+    # ==========================
+    GHOST_MODE_COOKIE_NAME: str = Field(default="curalink_ghost_mode")
+
+    # ==========================
     # Not yet wired - reserved for future integrations
     # ==========================
     SMS_PROVIDER: str = Field(default="console")

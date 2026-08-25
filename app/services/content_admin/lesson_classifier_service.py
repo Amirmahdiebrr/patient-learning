@@ -14,6 +14,12 @@ a lesson, that name is matched directly against JourneyStage.name /
 StandardDepartmentType.name BEFORE calling the AI. Only lessons
 missing a confident name match for a field fall back to AI
 classification for that field.
+
+Name matching itself (whitespace/invisible-character normalization,
+and correct exact-before-substring/longest-substring resolution for
+catalog names that are substrings of each other, e.g. "ICU" inside
+"NICU"/"PICU") lives in app/services/content_admin/name_matching.py -
+see that module's docstring for the specific bugs this fixes.
 """
 
 import json
@@ -23,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import JourneyStage, StandardDepartmentType, Procedure
 from app.infrastructure.external.ai_provider import ask_ai, AIProviderError
+from app.services.content_admin.name_matching import find_best_name_match
 
 MAX_BODY_CHARS_FOR_CLASSIFICATION = 500
 
@@ -74,30 +81,18 @@ def _extract_json_array(raw_text: str) -> list:
     return json.loads(cleaned)
 
 
-def _normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip().lower())
-
-
 def _match_stage_by_name(name: str | None, stages: list[JourneyStage]) -> str | None:
     if not name:
         return None
-    normalized = _normalize(name)
-    for stage in stages:
-        stage_name_normalized = _normalize(stage.name)
-        if normalized == stage_name_normalized or normalized in stage_name_normalized or stage_name_normalized in normalized:
-            return stage.code.value
-    return None
+    matched = find_best_name_match(name, stages, name_getter=lambda s: s.name)
+    return matched.code.value if matched else None
 
 
 def _match_department_by_name(name: str | None, department_types: list[StandardDepartmentType]) -> str | None:
     if not name:
         return None
-    normalized = _normalize(name)
-    for dept in department_types:
-        dept_name_normalized = _normalize(dept.name)
-        if normalized == dept_name_normalized or normalized in dept_name_normalized or dept_name_normalized in normalized:
-            return dept.code
-    return None
+    matched = find_best_name_match(name, department_types, name_getter=lambda d: d.name)
+    return matched.code if matched else None
 
 
 def _match_procedure_by_name(db: Session, department_type_id, name: str | None) -> str | None:
@@ -108,17 +103,13 @@ def _match_procedure_by_name(db: Session, department_type_id, name: str | None) 
     """
     if not name or not department_type_id:
         return None
-    normalized = _normalize(name)
     procedures = (
         db.query(Procedure)
         .filter(Procedure.department_type_id == department_type_id, Procedure.is_active.is_(True))
         .all()
     )
-    for procedure in procedures:
-        proc_name_normalized = _normalize(procedure.name)
-        if normalized == proc_name_normalized or normalized in proc_name_normalized or proc_name_normalized in normalized:
-            return procedure.slug
-    return None
+    matched = find_best_name_match(name, procedures, name_getter=lambda p: p.name)
+    return matched.slug if matched else None
 
 
 async def classify_lessons(db: Session, lessons: list[dict]) -> list[dict]:

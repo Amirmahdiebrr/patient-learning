@@ -31,8 +31,10 @@ logger = get_logger(__name__)
 
 # NOTE: GENERAL_EDUCATION and DEPARTMENT_INTRO were merged into
 # ADMISSION (migration 6c4f2b8e9a1d); PROCEDURE ("حین عمل") was merged
-# into BEFORE_PROCEDURE (migration 7c4e9a2f1b6d). All enum members
-# still exist on JourneyStageCode for backward-compat, but no
+# into BEFORE_PROCEDURE (migration 7c4e9a2f1b6d); FOLLOW_UP and
+# LONG_TERM_MONITORING were merged into HOME_CARE, renamed to
+# "پیگیری و مراقبت در منزل" (migration f1a4c7e9b2d6). All enum
+# members still exist on JourneyStageCode for backward-compat, but no
 # journey_stages row should be created for any retired code.
 # PROCEDURE_INTRO ("آشنایی با عمل", migration 9a1c5e7f2b4d) sits
 # between ADMISSION and BEFORE_PROCEDURE.
@@ -44,9 +46,7 @@ JOURNEY_STAGES = [
     (JourneyStageCode.AFTER_PROCEDURE, "بعد از عمل", 5),
     (JourneyStageCode.DAILY_INPATIENT, "آموزش روزانه‌ی بستری", 6),
     (JourneyStageCode.DISCHARGE, "ترخیص", 7),
-    (JourneyStageCode.HOME_CARE, "مراقبت در منزل", 8),
-    (JourneyStageCode.FOLLOW_UP, "پیگیری", 9),
-    (JourneyStageCode.LONG_TERM_MONITORING, "پایش بلندمدت", 10),
+    (JourneyStageCode.HOME_CARE, "پیگیری و مراقبت در منزل", 8),
 ]
 
 ROLES = [

@@ -15,6 +15,12 @@ Also exposes /patient-report/{id}/progress: full lesson-by-lesson
 progress + quiz stats for one patient, so a hospital admin/super_admin
 can see exactly how far a referred patient has gotten in their
 education, not just the referral's clinical fields.
+
+Ghost profiles (PatientAccessProfile.is_ghost=True - see
+app/services/ghost_session_service.py) are deliberately excluded from
+this report: they are synthetic QA sessions a super_admin creates to
+browse content, not real patients, and must never pollute hospital-
+facing patient counts/reports.
 """
 
 import uuid
@@ -38,6 +44,8 @@ from app.core.encryption import blind_index
 
 router = APIRouter(prefix="/admin", tags=["admin_patient_report"])
 
+# NOTE: follow_up and long_term_monitoring were merged into home_care,
+# renamed "پیگیری و مراقبت در منزل" - see migration f1a4c7e9b2d6.
 STAGE_DISPLAY_NAMES = {
     "welcome": "خوش‌آمدگویی",
     "admission": "پذیرش در بخش",
@@ -47,9 +55,7 @@ STAGE_DISPLAY_NAMES = {
     "after_procedure": "بعد از عمل",
     "daily_inpatient": "آموزش روزانه‌ی بستری",
     "discharge": "ترخیص",
-    "home_care": "مراقبت در منزل",
-    "follow_up": "پیگیری",
-    "long_term_monitoring": "پایش بلندمدت",
+    "home_care": "پیگیری و مراقبت در منزل",
 }
 
 
@@ -80,7 +86,8 @@ async def get_patient_report(
         .join(PatientAccessProfile, PatientRegistration.patient_access_profile_id == PatientAccessProfile.id)
         .outerjoin(QRAccessPoint, PatientAccessProfile.qr_access_point_id == QRAccessPoint.id)
         .filter(
-            (PatientAccessProfile.hospital_id == hospital_id) | (QRAccessPoint.hospital_id == hospital_id)
+            (PatientAccessProfile.hospital_id == hospital_id) | (QRAccessPoint.hospital_id == hospital_id),
+            PatientAccessProfile.is_ghost.is_(False),
         )
     )
 

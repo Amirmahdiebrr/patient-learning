@@ -78,7 +78,10 @@
     const tableWrap = document.getElementById("report-table-wrap");
     const totalCountEl = document.getElementById("report-total-count");
 
-        const STAGES = [
+            // NOTE: follow_up and long_term_monitoring were merged into
+    // home_care, renamed "پیگیری و مراقبت در منزل" - see migration
+    // f1a4c7e9b2d6.
+    const STAGES = [
         ["welcome", "خوش‌آمدگویی"],
         ["admission", "پذیرش در بخش"],
         ["procedure_intro", "آشنایی با عمل"],
@@ -87,9 +90,7 @@
         ["after_procedure", "بعد از عمل"],
         ["daily_inpatient", "آموزش روزانه‌ی بستری"],
         ["discharge", "ترخیص"],
-        ["home_care", "مراقبت در منزل"],
-        ["follow_up", "پیگیری"],
-        ["long_term_monitoring", "پایش بلندمدت"],
+        ["home_care", "پیگیری و مراقبت در منزل"],
     ];
     stageSelect.innerHTML = '<option value="">— همه‌ی مراحل —</option>' +
         STAGES.map(function (s) { return `<option value="${s[0]}">${s[1]}</option>`; }).join("");

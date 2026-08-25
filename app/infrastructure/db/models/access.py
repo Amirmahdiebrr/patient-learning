@@ -109,6 +109,20 @@ class QRAccessPoint(Base):
 
 
 class PatientAccessProfile(Base):
+    """
+    is_ghost / ghost_created_by_admin_id / ghost_label (added by
+    migration a9c2e5f8b1d4) identify "ghost" profiles created by a
+    super_admin through app/services/ghost_session_service.py for
+    free, unrestricted QA browsing of any hospital/department's
+    patient-facing content - see app/api/v1/admin_ghost_browser.py.
+
+    A ghost profile flows through the exact same patient routes
+    (app/api/v1/patient_*.py) a real patient uses - it is NOT a
+    separate preview renderer - so app/services/content_targeting_service.py
+    (journey-stage lock bypass) and every patient-facing analytics/
+    report query (which must exclude is_ghost=True rows) are the only
+    two places that need to special-case this flag.
+    """
     __tablename__ = "patient_access_profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -119,10 +133,15 @@ class PatientAccessProfile(Base):
 
     device_fingerprint_hash = Column(String(128), nullable=True)
 
+    is_ghost = Column(Boolean, default=False, nullable=False, index=True)
+    ghost_created_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
+    ghost_label = Column(String(255), nullable=True)
+
     first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     qr_access_point = relationship("QRAccessPoint")
     hospital = relationship("Hospital")
     department = relationship("Department")
+    ghost_created_by_admin = relationship("AdminUser")
     registration = relationship("PatientRegistration", back_populates="patient_access_profile", uselist=False)

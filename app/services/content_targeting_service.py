@@ -30,6 +30,15 @@ each carrying its own lessons AND its own stage-level quiz. A stage
 is "completed" once every one of its lessons has a COMPLETED
 ProgressRecord; a stage is "unlocked" once the previous stage in the
 timeline is completed (the first stage is always unlocked).
+
+GHOST MODE EXCEPTION: if patient_access_profile_id belongs to a ghost
+profile (PatientAccessProfile.is_ghost=True - see
+app/services/ghost_session_service.py), every stage in the timeline
+is treated as unlocked regardless of completion state, so a
+super_admin QA-browsing any hospital/department can freely see every
+stage's content without needing to "complete" earlier ones first.
+This is the ONLY behavioral difference ghost profiles get anywhere in
+this file - lesson/quiz resolution itself is completely unmodified.
 """
 
 import uuid
@@ -42,6 +51,7 @@ from app.infrastructure.db.models import (
     EducationSection,
     ContentTargetingRule,
     PatientJourneyProfile,
+    PatientAccessProfile,
     LessonOverrideLevel,
     QuizQuestion,
     JourneyStage,
@@ -259,6 +269,12 @@ def get_journey_timeline(
 
     procedure_ids = get_effective_procedure_ids(db, journey)
 
+    is_ghost_profile = bool(
+        db.query(PatientAccessProfile.is_ghost)
+        .filter(PatientAccessProfile.id == patient_access_profile_id)
+        .scalar()
+    )
+
     timeline: list[dict] = []
     previous_completed = True
 
@@ -289,7 +305,7 @@ def get_journey_timeline(
         ]
 
         stage_completed = bool(lessons) and len(completed_lesson_ids) == len(lessons)
-        stage_unlocked = previous_completed
+        stage_unlocked = True if is_ghost_profile else previous_completed
 
         timeline.append({
             "stage_code": stage.code.value,
@@ -301,6 +317,6 @@ def get_journey_timeline(
             "quiz_questions": quiz_questions,
         })
 
-        previous_completed = stage_completed if stage_unlocked else False
+        previous_completed = True if is_ghost_profile else (stage_completed if stage_unlocked else False)
 
     return timeline

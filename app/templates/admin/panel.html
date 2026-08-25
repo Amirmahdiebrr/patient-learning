@@ -154,9 +154,10 @@
             <select id="department-select"><option value="">— ابتدا بیمارستان را انتخاب کنید —</option></select>
         </div>
         <div id="department-actions" class="cl-admin-inline-form" style="display:none;">
-            <button id="edit-department-btn" class="cl-btn cl-btn-sm cl-btn-outline">ویرایش</button>
-            <button id="toggle-department-btn" class="cl-btn cl-btn-sm cl-btn-outline">غیرفعال/فعال کردن</button>
-        </div>
+    <button id="edit-department-btn" class="cl-btn cl-btn-sm cl-btn-outline">ویرایش</button>
+    <button id="toggle-department-btn" class="cl-btn cl-btn-sm cl-btn-outline">غیرفعال/فعال کردن</button>
+    <button id="delete-department-btn" class="cl-btn cl-btn-sm cl-btn-outline" style="color:var(--warn); border-color:var(--warn);">حذف کامل بخش</button>
+</div>
     </div>
 
 </div>
@@ -1336,6 +1337,27 @@
             AdminToast.error(err.message);
         }
     });
+
+  document.getElementById("delete-department-btn").addEventListener("click", async function () {
+    if (!state.departmentId) return;
+    const opt = departmentSelect.options[departmentSelect.selectedIndex];
+    const departmentName = opt.text.split(" (")[0];
+
+    const confirmed = await AdminModal.confirm(
+        `بخش «${departmentName}» برای همیشه حذف شود؟ این کار غیرقابل بازگشت است. کدهای QR این بخش حذف می‌شوند و دسترسی ادمین‌های مختص همین بخش لغو می‌شود (اطلاعات بیماران ثبت‌شده حفظ می‌ماند).`
+    );
+    if (!confirmed) return;
+
+    try {
+        await api(`/admin/departments/${state.departmentId}`, { method: "DELETE" });
+        AdminToast.success("بخش برای همیشه حذف شد.");
+        state.departmentId = null;
+        departmentActions.style.display = "none";
+        await loadDepartments(state.hospitalId);
+    } catch (err) {
+        AdminToast.error(err.message);
+    }
+});
 
     document.getElementById("create-department-btn").addEventListener("click", async function () {
         const departmentTypeId = newDepartmentTypeSelect.value || null;

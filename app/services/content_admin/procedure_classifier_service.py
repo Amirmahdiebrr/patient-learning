@@ -18,6 +18,11 @@ StandardDepartmentType. Resolution order:
 
 This mirrors the stage/department matching approach used for lessons
 in lesson_classifier_service.py, simplified to a single target field.
+Name matching itself (whitespace/invisible-character normalization,
+and correct exact-before-substring/longest-substring resolution for
+catalog names that are substrings of each other, e.g. "ICU" inside
+"NICU"/"PICU") lives in app/services/content_admin/name_matching.py -
+see that module's docstring for the specific bugs this fixes.
 """
 
 import json
@@ -27,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import StandardDepartmentType
 from app.infrastructure.external.ai_provider import ask_ai, AIProviderError
+from app.services.content_admin.name_matching import find_best_name_match
 
 CLASSIFY_SYSTEM_PROMPT = """
 تو دستیار دسته‌بندی «عمل‌های جراحی / پروسیجرهای پزشکی» پلتفرم بیمارستانی
@@ -52,23 +58,11 @@ department_type_code را null بگذار - هرگز حدس بی‌پایه نز
 """
 
 
-def _normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip().lower())
-
-
 def _match_department_by_name(name: str | None, department_types: list[StandardDepartmentType]) -> str | None:
     if not name:
         return None
-    normalized = _normalize(name)
-    for dept in department_types:
-        dept_name_normalized = _normalize(dept.name)
-        if (
-            normalized == dept_name_normalized
-            or normalized in dept_name_normalized
-            or dept_name_normalized in normalized
-        ):
-            return dept.code
-    return None
+    matched = find_best_name_match(name, department_types, name_getter=lambda d: d.name)
+    return matched.code if matched else None
 
 
 def _extract_json_array(raw_text: str) -> list:

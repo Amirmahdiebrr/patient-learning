@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}حالت روح | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="margin-top:24px;">
+        <h1><span class="material-symbols-outlined cl-icon-lg" style="vertical-align:middle; color:var(--color-primary); margin-inline-end:8px;">visibility</span>حالت روح</h1>
+        <p class="cl-sub">
+            از این‌جا وارد پروفایل بیمار هر بیمارستان/بخشی که بخواهید می‌شوید — دقیقاً همان چیزی که یک بیمار واقعی
+            می‌بیند (همان صفحات، همان درس‌ها، همان آزمون‌ها، همان دستیار هوشمند)، بدون هیچ قفل مرحله‌ای.
+            این نشست‌ها هرگز در آمار یا گزارش بیماران واقعی ظاهر نمی‌شوند.
+        </p>
+
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label>بیمارستان</label>
+                <select id="ghost-hospital-select"><option value="">— انتخاب کنید —</option></select>
+            </div>
+            <div class="cl-field">
+                <label>بخش</label>
+                <select id="ghost-department-select"><option value="">— ابتدا بیمارستان را انتخاب کنید —</option></select>
+            </div>
+        </div>
+
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label>بیماری (اختیاری)</label>
+                <select id="ghost-disease-select"><option value="">— بدون بیماری خاص —</option></select>
+            </div>
+            <div class="cl-field">
+                <label>نوع درمان (اختیاری)</label>
+                <select id="ghost-treatment-select"><option value="">— انتخاب کنید —</option></select>
+            </div>
+        </div>
+
+        <div class="cl-field">
+            <label>آیا این بیمار شبیه‌سازی‌شده عمل جراحی دارد؟</label>
+            <div class="cl-radio-group">
+                <label><input type="radio" name="ghost-has-surgery" value="yes" id="ghost-surgery-yes"> بله</label>
+                <label><input type="radio" name="ghost-has-surgery" value="no" id="ghost-surgery-no"> خیر</label>
+                <label><input type="radio" name="ghost-has-surgery" value="" id="ghost-surgery-unset" checked> نامشخص</label>
+            </div>
+        </div>
+
+        <div class="cl-field" id="ghost-procedure-field" style="display:none;">
+            <label>عمل جراحی (اختیاری - برای تست محتوای مخصوص یک عمل)</label>
+            <select id="ghost-procedure-select"><option value="">— عمومی —</option></select>
+        </div>
+
+        <div class="cl-admin-row">
+            <div class="cl-field"><label>سن شبیه‌سازی‌شده (اختیاری)</label><input type="number" id="ghost-age" min="0" max="120"></div>
+            <div class="cl-field">
+                <label>جنسیت شبیه‌سازی‌شده (اختیاری)</label>
+                <select id="ghost-gender">
+                    <option value="">— انتخاب کنید —</option>
+                    <option value="female">زن</option>
+                    <option value="male">مرد</option>
+                    <option value="other">سایر</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="cl-field">
+            <label>مرحله‌ی سفر بیمار (برای دیدن کل مسیر یک‌جا، آخرین مرحله را انتخاب کنید)</label>
+            <select id="ghost-stage-select"><option value="">خوش‌آمدگویی (شروع)</option></select>
+        </div>
+
+        <div class="cl-field">
+            <label>برچسب این نشست (اختیاری - برای پیدا کردنش بعداً)</label>
+            <input type="text" id="ghost-label" placeholder="مثلاً: تست ICU - بیمار مرد ۴۵ ساله">
+        </div>
+
+        <button id="ghost-enter-btn" class="cl-btn">
+    <span class="material-symbols-outlined cl-icon-sm" style="margin-inline-end:6px;">login</span>
+    ورود به حالت روح
+</button>
+    </div>
+
+    <div class="cl-card cl-admin-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h2 class="cl-admin-h2" style="margin:0;">نشست‌های قبلی</h2>
+            <span id="ghost-list-count" style="font-size:13px; color:#8CA0B3;"></span>
+        </div>
+        <div id="ghost-sessions-list"></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function api(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        options.headers = Object.assign(
+            { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) { window.location.href = "/admin/login"; throw new Error("unauthorized"); }
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    const STAGE_LABELS = {
+        welcome: "خوش‌آمدگویی", admission: "پذیرش در بخش", procedure_intro: "آشنایی با عمل",
+        before_procedure: "قبل از عمل", after_procedure: "بعد از عمل",
+        daily_inpatient: "آموزش روزانه‌ی بستری", discharge: "ترخیص",
+        home_care: "پیگیری و مراقبت در منزل",
+    };
+
+    const hospitalSelect = document.getElementById("ghost-hospital-select");
+    const departmentSelect = document.getElementById("ghost-department-select");
+    const diseaseSelect = document.getElementById("ghost-disease-select");
+    const treatmentSelect = document.getElementById("ghost-treatment-select");
+    const procedureField = document.getElementById("ghost-procedure-field");
+    const procedureSelect = document.getElementById("ghost-procedure-select");
+    const stageSelect = document.getElementById("ghost-stage-select");
+    const sessionsList = document.getElementById("ghost-sessions-list");
+    const sessionsCount = document.getElementById("ghost-list-count");
+
+    let currentDepartmentTypeId = null;
+
+    async function loadHospitals() {
+        const hospitals = await api("/admin/my-hospitals");
+        hospitalSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            hospitals.map(function (h) { return `<option value="${h.id}">${escapeHtml(h.name)}</option>`; }).join("");
+    }
+
+    async function loadDepartments(hospitalId) {
+        const departments = await api(`/admin/hospitals/${hospitalId}/departments`);
+        departmentSelect.innerHTML = departments.length === 0
+            ? '<option value="">— این بیمارستان بخشی ندارد —</option>'
+            : '<option value="">— انتخاب کنید —</option>' +
+              departments.map(function (d) { return `<option value="${d.id}" data-department-type-id="${d.department_type_id || ''}">${escapeHtml(d.name)}</option>`; }).join("");
+    }
+
+    async function loadProcedures(departmentTypeId) {
+        if (!departmentTypeId) {
+            procedureSelect.innerHTML = '<option value="">— عمومی —</option>';
+            return;
+        }
+        const procedures = await api(`/admin/procedures?department_type_id=${departmentTypeId}`);
+        procedureSelect.innerHTML = '<option value="">— عمومی —</option>' +
+            procedures.map(function (p) { return `<option value="${p.id}">${escapeHtml(p.name)}</option>`; }).join("");
+    }
+
+    async function loadDiseasesAndStages() {
+        const [diseases, stages] = await Promise.all([
+            api("/admin/diseases"),
+            api("/admin/journey-stages"),
+        ]);
+        diseaseSelect.innerHTML = '<option value="">— بدون بیماری خاص —</option>' +
+            diseases.map(function (d) { return `<option value="${d.id}">${escapeHtml(d.name)}</option>`; }).join("");
+        stageSelect.innerHTML = '<option value="">خوش‌آمدگویی (شروع)</option>' +
+            stages.map(function (s) { return `<option value="${s.code}">${escapeHtml(s.name)}</option>`; }).join("");
+    }
+
+    diseaseSelect.addEventListener("change", async function () {
+        treatmentSelect.innerHTML = '<option value="">— انتخاب کنید —</option>';
+        if (!diseaseSelect.value) return;
+        const treatments = await api(`/admin/diseases/${diseaseSelect.value}/treatments`);
+        treatmentSelect.innerHTML = '<option value="">— انتخاب کنید —</option>' +
+            treatments.map(function (t) { return `<option value="${t.id}">${escapeHtml(t.name)}</option>`; }).join("");
+    });
+
+    function toggleProcedureField() {
+        const surgeryYes = document.getElementById("ghost-surgery-yes").checked;
+        procedureField.style.display = surgeryYes && currentDepartmentTypeId ? "block" : "none";
+        if (!surgeryYes) procedureSelect.value = "";
+    }
+    document.getElementById("ghost-surgery-yes").addEventListener("change", toggleProcedureField);
+    document.getElementById("ghost-surgery-no").addEventListener("change", toggleProcedureField);
+    document.getElementById("ghost-surgery-unset").addEventListener("change", toggleProcedureField);
+
+    hospitalSelect.addEventListener("change", async function () {
+        currentDepartmentTypeId = null;
+        if (hospitalSelect.value) {
+            await loadDepartments(hospitalSelect.value);
+        } else {
+            departmentSelect.innerHTML = '<option value="">— ابتدا بیمارستان را انتخاب کنید —</option>';
+        }
+        await loadProcedures(null);
+        toggleProcedureField();
+    });
+
+    departmentSelect.addEventListener("change", async function () {
+        const opt = departmentSelect.options[departmentSelect.selectedIndex];
+        currentDepartmentTypeId = opt ? (opt.dataset.departmentTypeId || null) : null;
+        await loadProcedures(currentDepartmentTypeId);
+        toggleProcedureField();
+    });
+
+    document.getElementById("ghost-enter-btn").addEventListener("click", async function () {
+        if (!hospitalSelect.value || !departmentSelect.value) {
+            AdminToast.error("بیمارستان و بخش را انتخاب کنید.");
+            return;
+        }
+        const hasSurgeryEl = document.querySelector('input[name="ghost-has-surgery"]:checked');
+
+        try {
+            const result = await api("/admin/ghost-sessions", {
+                method: "POST",
+                body: JSON.stringify({
+                    hospital_id: hospitalSelect.value,
+                    department_id: departmentSelect.value,
+                    ghost_label: document.getElementById("ghost-label").value.trim() || null,
+                    disease_id: diseaseSelect.value || null,
+                    treatment_id: treatmentSelect.value || null,
+                    procedure_id: procedureSelect.value || null,
+                    has_surgery: hasSurgeryEl && hasSurgeryEl.value ? hasSurgeryEl.value === "yes" : null,
+                    age: document.getElementById("ghost-age").value ? parseInt(document.getElementById("ghost-age").value, 10) : null,
+                    gender: document.getElementById("ghost-gender").value || null,
+                    target_stage_code: stageSelect.value || null,
+                }),
+            });
+            window.location.href = result.redirect_url;
+        } catch (err) {
+            AdminToast.error(err.message);
+        }
+    });
+
+    async function loadSessions() {
+        sessionsList.innerHTML = '<p class="cl-admin-empty">در حال بارگذاری...</p>';
+        try {
+            const result = await api("/admin/ghost-sessions");
+            sessionsCount.textContent = `${result.rows.length} نشست`;
+
+            sessionsList.innerHTML = result.rows.length === 0
+                ? '<p class="cl-admin-empty">هنوز نشست روحی ساخته نشده.</p>'
+                : result.rows.map(function (s) {
+                    const stageOptionsHtml = Object.keys(STAGE_LABELS).map(function (code) {
+                        const selected = s.current_stage === code ? "selected" : "";
+                        return `<option value="${code}" ${selected}>${STAGE_LABELS[code]}</option>`;
+                    }).join("");
+                    return `<div class="cl-admin-lesson-row" data-ghost-id="${s.id}">
+                        <div class="cl-admin-lesson-head">
+                            <strong>${escapeHtml(s.ghost_label || "بدون برچسب")}</strong>
+                            <span style="font-size:11.5px; color:#8CA0B3;">${escapeHtml(s.hospital_name)} / ${escapeHtml(s.department_name)}</span>
+                            <button class="cl-btn cl-btn-sm" data-ghost-enter="${s.id}">ورود</button>
+                            <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-ghost-delete="${s.id}" title="حذف">🗑</button>
+                        </div>
+                        <div class="cl-admin-inline-form" style="margin-top:10px;">
+                            <select data-ghost-stage-select="${s.id}">${stageOptionsHtml}</select>
+                            <button class="cl-btn cl-btn-sm cl-btn-outline" data-ghost-jump="${s.id}">پرش به این مرحله</button>
+                        </div>
+                    </div>`;
+                }).join("");
+
+            sessionsList.querySelectorAll("[data-ghost-enter]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    try {
+                        const result = await api(`/admin/ghost-sessions/${btn.dataset.ghostEnter}/enter`, { method: "POST" });
+                        window.location.href = result.redirect_url;
+                    } catch (err) { AdminToast.error(err.message); }
+                });
+            });
+
+            sessionsList.querySelectorAll("[data-ghost-jump]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    const id = btn.dataset.ghostJump;
+                    const select = sessionsList.querySelector(`[data-ghost-stage-select="${id}"]`);
+                    try {
+                        await api(`/admin/ghost-sessions/${id}/jump-stage`, {
+                            method: "POST",
+                            body: JSON.stringify({ target_stage_code: select.value }),
+                        });
+                        AdminToast.success("مرحله تغییر کرد.");
+                        await loadSessions();
+                    } catch (err) { AdminToast.error(err.message); }
+                });
+            });
+
+            sessionsList.querySelectorAll("[data-ghost-delete]").forEach(function (btn) {
+                btn.addEventListener("click", async function () {
+                    const confirmed = await AdminModal.confirm("این نشست روح حذف شود؟");
+                    if (!confirmed) return;
+                    try {
+                        await api(`/admin/ghost-sessions/${btn.dataset.ghostDelete}`, { method: "DELETE" });
+                        AdminToast.success("نشست حذف شد.");
+                        await loadSessions();
+                    } catch (err) { AdminToast.error(err.message); }
+                });
+            });
+        } catch (err) {
+            sessionsList.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    (async function init() {
+        await loadHospitals();
+        await loadDiseasesAndStages();
+        await loadSessions();
+    })();
+})();
+</script>
+{% endblock %}

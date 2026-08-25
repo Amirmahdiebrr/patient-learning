@@ -13,6 +13,7 @@ from app.core.events import AdminContentAction
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import (
     Hospital, Department, RoleCode, StandardDepartmentType, AdminUser, AdminRoleAssignment,
+    QRAccessPoint, PatientAccessProfile, NurseUser, ContentTargetingRule,
 )
 from app.schemas.admin import (
     HospitalCreateRequest, HospitalUpdateRequest, HospitalResponse,
@@ -27,6 +28,13 @@ from app.infrastructure.db.repositories.hospital_scoped_repository import ensure
 router = APIRouter(prefix="/admin", tags=["admin_hospitals"])
 
 require_super_admin = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN,))
+
+# Hard-deleting a department is irreversible (unlike deactivate/
+# reactivate, which any hospital-scoped admin - including DOCTOR - can
+# already do). Deliberately narrower than ensure_hospital_access:
+# only a global super_admin or an actual HOSPITAL_ADMIN of that
+# specific hospital may permanently delete a department.
+require_hospital_admin_or_above = ScopeCheck(allowed_roles=(RoleCode.SUPER_ADMIN, RoleCode.HOSPITAL_ADMIN))
 
 
 def _to_department_response(department: Department) -> DepartmentResponse:
@@ -394,3 +402,80 @@ async def reactivate_department(
     ))
 
     return _to_department_response(department)
+
+
+@router.delete("/departments/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_department(
+    department_id: uuid.UUID,
+    request: Request,
+    admin: AdminUser = Depends(require_hospital_admin_or_above()),
+    db: Session = Depends(get_db),
+):
+    """
+    Permanently deletes a department - unlike deactivate/reactivate,
+    this cannot be undone. Never deletes patient-identifying history:
+
+      - QRAccessPoint.department_id is NOT nullable, so QR points
+        belonging to this department are deleted outright; any
+        PatientAccessProfile that entered through one of them keeps
+        its own row, only its (now-gone) qr_access_point_id link is
+        cleared.
+      - Self-service PatientAccessProfile rows scoped directly to
+        this department: department_id cleared, patient row kept.
+      - NurseUser rows scoped to exactly this department: department_id
+        cleared, which is the exact same "whole hospital" semantics
+        already documented for a hospital-wide nurse - not data loss.
+      - AdminRoleAssignment rows scoped to exactly this department are
+        revoked outright (never widened to hospital-wide - silently
+        broadening an admin's access as a side effect of an unrelated
+        department deletion would be a privilege-escalation bug).
+      - ContentTargetingRule rows scoped to exactly this department
+        are removed (the lesson itself is untouched; it simply stops
+        being restricted to a department that no longer exists).
+    """
+    department = db.query(Department).filter(Department.id == department_id).first()
+    if not department:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "بخش پیدا نشد.")
+
+    ensure_hospital_access(admin, db, department.hospital_id)
+
+    before = _department_snapshot(department)
+    department_id_copy = department.id
+    department_name = department.name
+
+    qr_point_ids = [
+        row[0] for row in
+        db.query(QRAccessPoint.id).filter(QRAccessPoint.department_id == department_id).all()
+    ]
+    if qr_point_ids:
+        db.query(PatientAccessProfile).filter(
+            PatientAccessProfile.qr_access_point_id.in_(qr_point_ids)
+        ).update({PatientAccessProfile.qr_access_point_id: None}, synchronize_session=False)
+        db.query(QRAccessPoint).filter(QRAccessPoint.department_id == department_id).delete(
+            synchronize_session=False
+        )
+
+    db.query(PatientAccessProfile).filter(PatientAccessProfile.department_id == department_id).update(
+        {PatientAccessProfile.department_id: None}, synchronize_session=False
+    )
+
+    db.query(NurseUser).filter(NurseUser.department_id == department_id).update(
+        {NurseUser.department_id: None}, synchronize_session=False
+    )
+
+    db.query(AdminRoleAssignment).filter(AdminRoleAssignment.department_id == department_id).delete(
+        synchronize_session=False
+    )
+
+    db.query(ContentTargetingRule).filter(ContentTargetingRule.department_id == department_id).delete(
+        synchronize_session=False
+    )
+
+    db.delete(department)
+    db.commit()
+
+    event_bus.publish(AdminContentAction(
+        admin_id=admin.id, action="delete", object_type="department", object_id=department_id_copy,
+        before=before, after={"name": department_name, "permanently_deleted": True},
+        ip_address=client_ip(request),
+    ))

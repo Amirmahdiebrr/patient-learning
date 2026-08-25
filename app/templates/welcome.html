@@ -1,13 +1,20 @@
+{# app/templates/welcome.html #}
 {% extends "base.html" %}
 {% block title %}خوش آمدید | CuraLink{% endblock %}
 {% block content %}
 <div class="cl-container">
-    <div class="cl-card">
-        <h1>خوش آمدید به {{ hospital.name }} — بخش {{ department.name }}</h1>
-        <p class="cl-sub">قبل از شروع، این نکات عمومی را مطالعه کنید.</p>
+    <div class="cl-card cl-hospital-welcome-card">
+        <span class="cl-hospital-welcome-icon">
+            <span class="material-symbols-outlined cl-icon-lg">local_hospital</span>
+        </span>
+        <h1>خوش آمدید به {{ hospital.name }}</h1>
+        <p class="cl-sub">
+            پیش از شروع، این نکات عمومی را مطالعه کنید؛ در ادامه اطلاعات خود را تکمیل می‌کنید
+            تا مسیر آموزشی اختصاصی بخش شما آماده شود.
+        </p>
 
         {% if lessons|length == 0 %}
-        <p style="color:#8CA0B3;">فعلاً محتوایی برای این مرحله ثبت نشده است.</p>
+        <p style="color:#8CA0B3; text-align:center;">فعلاً محتوایی برای این مرحله ثبت نشده است.</p>
         {% else %}
         <div class="cl-lesson-list">
             {% for lesson in lessons %}

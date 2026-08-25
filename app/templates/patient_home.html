@@ -4,13 +4,21 @@
 {% block content %}
 <div class="cl-container">
 
-    <div class="cl-card cl-journey-welcome">
-        <h1>خوش آمدید</h1>
-        <p class="cl-sub" style="margin:0;">
-            {{ hospital.name }} — بخش {{ department.name }}<br>
-            این مسیر آموزشی بالینی شماست؛ مراحل زیر را به ترتیب دنبال کنید. پس از مطالعه‌ی هر مرحله، مرحله‌ی بعدی برایتان باز می‌شود
-            و در هر زمان می‌توانید به مراحل قبلی هم برگردید. برای دیدن نمودار پیشرفت و نتیجه‌ی آزمون‌ها به «مسیر درمان من» سر بزنید.
-        </p>
+    <div class="cl-welcome-hero">
+        <div class="cl-welcome-hero-illustration">
+            <img src="/static/img/patient-welcome-nurse.png" alt="پرستار CuraLink">
+        </div>
+        <div class="cl-welcome-hero-text">
+            <span class="cl-welcome-hero-badge">خوش‌آمدگویی بخش</span>
+            <h1>
+                {% if patient_first_name %}سلام {{ patient_first_name }} عزیز{% else %}سلام بازدید کننده عزیز{% endif %}
+            </h1>
+            <p class="cl-sub">
+                به بخش {{ department.name }} {{ hospital.name }} خوش آمدید.
+                این مسیر آموزشی بالینی شماست؛ مراحل زیر را به ترتیب دنبال کنید. پس از مطالعه‌ی هر مرحله، مرحله‌ی بعدی برایتان باز می‌شود
+                و در هر زمان می‌توانید به مراحل قبلی هم برگردید. برای دیدن نمودار پیشرفت و نتیجه‌ی آزمون‌ها به «مسیر درمان من» سر بزنید.
+            </p>
+        </div>
     </div>
 
     {% if timeline|length == 0 %}

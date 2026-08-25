@@ -2,28 +2,55 @@
 {% extends "base.html" %}
 {% block title %}ورود بیمار | CuraLink{% endblock %}
 {% block content %}
-<div class="cl-container">
-    <div class="cl-card" style="max-width:420px;">
-        <h1>ورود بیمار</h1>
-        <p class="cl-sub">با کد ملی و رمز عبوری که هنگام ثبت‌نام تعیین کردید وارد شوید.</p>
+<div class="cl-auth-page">
+    <div class="cl-auth-split">
 
-        <div class="cl-field">
-            <label for="national_id">کد ملی</label>
-            <input type="text" id="national_id" inputmode="numeric" maxlength="10">
+        <div class="cl-auth-illustration-panel">
+            <div class="cl-auth-illustration-badge">
+                <span class="material-symbols-outlined cl-icon-lg">favorite</span>
+            </div>
+            <h2>همراه شما در مسیر درمان</h2>
+            <p>آموزش شخصی‌سازی‌شده، پیگیری هوشمند و دستیار بالینی — هر زمان که نیاز داشتید، در دسترس شماست.</p>
+            <ul class="cl-auth-feature-list">
+                <li><span class="material-symbols-outlined cl-icon-sm">auto_stories</span> محتوای آموزشی متناسب با شرایط شما</li>
+                <li><span class="material-symbols-outlined cl-icon-sm">psychology</span> دستیار هوشمند ۲۴ ساعته</li>
+                <li><span class="material-symbols-outlined cl-icon-sm">shield</span> اطلاعات شما کاملاً محرمانه است</li>
+            </ul>
         </div>
 
-        <div class="cl-field">
-            <label for="password">رمز عبور</label>
-            <input type="password" id="password">
+        <div class="cl-auth-form-panel">
+            <div class="cl-auth-form-inner">
+                <div class="cl-auth-logo-row">
+                    <span class="cl-logo-icon"><span class="material-symbols-outlined cl-icon-md">local_hospital</span></span>
+                    <span class="cl-auth-logo-text">CuraLink</span>
+                </div>
+
+                <h1>ورود بیمار</h1>
+                <p class="cl-sub">با کد ملی و رمز عبوری که هنگام ثبت‌نام تعیین کردید وارد شوید.</p>
+
+                <div class="cl-field">
+                    <label for="national_id">کد ملی</label>
+                    <input type="text" id="national_id" inputmode="numeric" maxlength="10" placeholder="۱۰ رقم بدون خط تیره">
+                </div>
+
+                <div class="cl-field">
+                    <label for="password">رمز عبور</label>
+                    <input type="password" id="password" placeholder="••••••••">
+                </div>
+
+                <p id="login-error" style="color:var(--warn); font-size:13.5px; display:none;"></p>
+
+                <button id="login-btn" class="cl-btn">
+                    <span class="material-symbols-outlined cl-icon-sm" style="margin-inline-end:6px;">login</span>
+                    ورود
+                </button>
+
+                <p class="cl-sub" style="margin-top:18px; margin-bottom:0; text-align:center;">
+                    حساب ندارید؟ <a href="/register" style="color:var(--accent); font-weight:700;">ثبت‌نام کنید</a>
+                </p>
+            </div>
         </div>
 
-        <p id="login-error" style="color:var(--warn); font-size:13.5px; display:none;"></p>
-
-        <button id="login-btn" class="cl-btn">ورود</button>
-
-        <p class="cl-sub" style="margin-top:18px; margin-bottom:0;">
-            حساب ندارید؟ <a href="/register" style="color:var(--accent); font-weight:700;">ثبت‌نام کنید</a>
-        </p>
     </div>
 </div>
 {% endblock %}

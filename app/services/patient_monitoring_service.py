@@ -8,6 +8,12 @@ actually completed, their quiz performance, and how long since their
 last activity - then flags patients who need follow-up (inactive too
 long, or repeatedly failing quizzes). Read-only aggregation over
 existing tables, no new storage.
+
+Ghost profiles (PatientAccessProfile.is_ghost=True - see
+app/services/ghost_session_service.py) are deliberately excluded from
+this monitoring view: they are synthetic QA sessions a super_admin
+creates to browse content, not real patients, and must never trigger
+a false "needs attention" flag or inflate a nurse's patient list.
 """
 
 import uuid
@@ -27,6 +33,8 @@ INACTIVITY_THRESHOLD_DAYS = 3
 LOW_QUIZ_SUCCESS_PERCENT = 50.0
 MIN_QUIZ_ATTEMPTS_FOR_FLAG = 3
 
+# NOTE: follow_up and long_term_monitoring were merged into home_care,
+# renamed "پیگیری و مراقبت در منزل" - see migration f1a4c7e9b2d6.
 STAGE_DISPLAY_NAMES = {
     "welcome": "خوش‌آمدگویی",
     "admission": "پذیرش در بخش",
@@ -35,9 +43,7 @@ STAGE_DISPLAY_NAMES = {
     "after_procedure": "بعد از عمل",
     "daily_inpatient": "آموزش روزانه‌ی بستری",
     "discharge": "ترخیص",
-    "home_care": "مراقبت در منزل",
-    "follow_up": "پیگیری",
-    "long_term_monitoring": "پایش بلندمدت",
+    "home_care": "پیگیری و مراقبت در منزل",
 }
 
 
@@ -195,7 +201,8 @@ def get_patient_monitoring(
         .outerjoin(QRAccessPoint, PatientAccessProfile.qr_access_point_id == QRAccessPoint.id)
         .options(joinedload(PatientRegistration.patient_access_profile))
         .filter(
-            (PatientAccessProfile.hospital_id == hospital_id) | (QRAccessPoint.hospital_id == hospital_id)
+            (PatientAccessProfile.hospital_id == hospital_id) | (QRAccessPoint.hospital_id == hospital_id),
+            PatientAccessProfile.is_ghost.is_(False),
         )
     )
 

@@ -5,14 +5,18 @@
 <div class="cl-container">
     {% include "patient_back_button.html" %}
 
-    <div class="cl-card">
-        <div class="cl-lesson-header">
+    <div class="cl-lesson-hero">
+        <span class="cl-lesson-hero-icon"><span class="material-symbols-outlined cl-icon-lg">menu_book</span></span>
+        <div class="cl-lesson-hero-text">
+            <span class="cl-lesson-hero-eyebrow">محتوای آموزشی</span>
             <h1>{{ lesson.title }}</h1>
-            <button id="fav-btn" class="cl-fav-btn {% if is_favorite %}cl-fav-btn-active{% endif %}" data-lesson-id="{{ lesson.id }}">
-                {% if is_favorite %}★ علاقه‌مندی{% else %}☆ افزودن به علاقه‌مندی‌ها{% endif %}
-            </button>
         </div>
+        <button id="fav-btn" class="cl-fav-btn {% if is_favorite %}cl-fav-btn-active{% endif %}" data-lesson-id="{{ lesson.id }}">
+            {% if is_favorite %}★ علاقه‌مندی{% else %}☆ افزودن به علاقه‌مندی‌ها{% endif %}
+        </button>
+    </div>
 
+    <div class="cl-card">
         {% if lesson.media_assets %}
         <div class="cl-media-list">
             {% for media in lesson.media_assets %}
@@ -24,7 +28,9 @@
                 {% elif media.type.value == "image" or media.type.value == "animation" %}
                     <img src="{{ media.file_url }}" style="width:100%; border-radius:var(--radius-sm);">
                 {% elif media.type.value == "pdf" %}
-                    <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none;">📄 مشاهده‌ی فایل PDF</a>
+                    <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; width:auto;">
+    <span class="material-symbols-outlined cl-icon-sm">picture_as_pdf</span> مشاهده‌ی فایل PDF
+</a>
                 {% endif %}
             </div>
             {% endfor %}
@@ -38,7 +44,10 @@
 
     {% if lesson.quiz_questions %}
     <div class="cl-card">
-        <h2 style="color:var(--navy); font-size:18px; margin-bottom:18px;">آزمون کوتاه</h2>
+        <div class="cl-quiz-section-head">
+            <span class="cl-quiz-section-icon"><span class="material-symbols-outlined cl-icon-md">quiz</span></span>
+            <h2>آزمون کوتاه</h2>
+        </div>
         {% for q in lesson.quiz_questions %}
         <div class="cl-quiz-question" data-question-id="{{ q.id }}">
             <p class="cl-quiz-text">{{ q.question_text }}</p>
