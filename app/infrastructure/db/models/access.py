@@ -131,7 +131,14 @@ class PatientAccessProfile(Base):
     hospital_id = Column(UUID(as_uuid=True), ForeignKey("hospitals.id"), nullable=True, index=True)
     department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True, index=True)
 
-    device_fingerprint_hash = Column(String(128), nullable=True)
+       device_fingerprint_hash = Column(String(128), nullable=True)
+
+    # Tracks whether this patient has ever acknowledged the one-time,
+    # hospital-level welcome page (see app/api/v1/welcome.py) -
+    # deliberately independent of onboarding_completed_at, since
+    # self-service patients (patient_self_auth.py) set that at
+    # registration time itself and it can't double as this signal.
+    hospital_welcome_acknowledged_at = Column(DateTime, nullable=True)
 
     is_ghost = Column(Boolean, default=False, nullable=False, index=True)
     ghost_created_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)

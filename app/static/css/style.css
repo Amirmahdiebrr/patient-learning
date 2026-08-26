@@ -2148,13 +2148,18 @@ input, textarea, select, button{ font-family:inherit; }
     .cl-assistant-history-list{ max-height:220px; }
 }
 /* ============================================================
-   PATIENT WELCOME HERO (home page) — department-focused greeting,
-   fully centered text, illustration breaks out of the card with a
-   transparent background (no boxed-in look)
+   PATIENT WELCOME HERO (home page) — department-focused greeting.
+   The illustration uses normal document flow with a negative
+   top-margin (not position:absolute + a guessed offset), so the
+   browser computes the real image height and always pushes the text
+   below it down by the correct amount, regardless of aspect ratio.
    ============================================================ */
 
 .cl-welcome-hero{
     position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
     text-align:center;
     background:var(--glass-bg-strong);
     backdrop-filter:var(--glass-filter);
@@ -2162,8 +2167,8 @@ input, textarea, select, button{ font-family:inherit; }
     border:1px solid rgba(255,255,255,.7);
     border-radius:var(--radius-xl);
     box-shadow:var(--shadow-md);
-    padding:120px 40px 40px;
-    margin:88px auto 24px;
+    padding:26px 40px 40px;
+    margin:70px auto 24px;
     overflow:visible;
 }
 .cl-welcome-hero::before{
@@ -2178,17 +2183,17 @@ input, textarea, select, button{ font-family:inherit; }
 }
 
 .cl-welcome-hero-illustration{
-    position:absolute;
-    top:-96px;
-    left:50%;
-    transform:translateX(-50%);
+    margin-top:-96px;
+    margin-bottom:14px;
+    position:relative;
     z-index:2;
     pointer-events:none;
 }
 .cl-welcome-hero-illustration img{
-    width:180px;
+    width:150px;
     height:auto;
     display:block;
+    margin:auto;
     filter:drop-shadow(0 18px 22px rgba(15,111,255,.20));
 }
 
@@ -2196,7 +2201,6 @@ input, textarea, select, button{ font-family:inherit; }
     position:relative;
     z-index:1;
     max-width:640px;
-    margin:auto;
 }
 
 .cl-welcome-hero-badge{
@@ -2218,11 +2222,10 @@ input, textarea, select, button{ font-family:inherit; }
 }
 
 @media(max-width:600px){
-    .cl-welcome-hero{ padding:100px 22px 32px; margin-top:76px; }
-    .cl-welcome-hero-illustration{ top:-84px; }
-    .cl-welcome-hero-illustration img{ width:150px; }
+    .cl-welcome-hero{ padding-top:22px; margin-top:60px; }
+    .cl-welcome-hero-illustration{ margin-top:-80px; }
+    .cl-welcome-hero-illustration img{ width:120px; }
 }
-
 /* ============================================================
    HOSPITAL WELCOME CARD (welcome.html) — the first, hospital-only
    greeting shown once before onboarding; department-specific
@@ -2244,3 +2247,116 @@ input, textarea, select, button{ font-family:inherit; }
 }
 
 .cl-hospital-welcome-card .cl-lesson-list{ text-align:start; }
+/* ============================================================
+   PATIENT AUTH PAGES (login) — split hero/form layout
+   ============================================================ */
+
+.cl-auth-page{
+    min-height:calc(100vh - 90px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px 4%;
+}
+
+.cl-auth-split{
+    width:100%;
+    max-width:920px;
+    display:grid;
+    grid-template-columns:1fr 1.1fr;
+    border-radius:var(--radius-xl);
+    overflow:hidden;
+    box-shadow:var(--shadow-lg);
+    background:var(--color-surface);
+}
+
+.cl-auth-illustration-panel{
+    background:var(--gradient-dark);
+    color:#fff;
+    padding:48px 40px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    position:relative;
+    isolation:isolate;
+    overflow:hidden;
+}
+.cl-auth-illustration-panel::before{
+    content:"";
+    position:absolute;
+    inset:-30%;
+    background:radial-gradient(circle at 25% 20%, rgba(255,255,255,.16), transparent 55%);
+    pointer-events:none;
+}
+.cl-auth-illustration-badge{
+    width:56px; height:56px;
+    border-radius:16px;
+    background:rgba(255,255,255,.14);
+    border:1.5px solid rgba(255,255,255,.3);
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:22px;
+    color:#fff;
+}
+.cl-auth-illustration-panel h2{
+    font-size:22px;
+    font-weight:800;
+    margin:0 0 12px;
+    position:relative;
+}
+.cl-auth-illustration-panel p{
+    font-size:13.5px;
+    line-height:2;
+    color:rgba(255,255,255,.85);
+    margin:0 0 26px;
+    position:relative;
+}
+
+.cl-auth-feature-list{
+    list-style:none;
+    padding:0; margin:0;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    position:relative;
+}
+.cl-auth-feature-list li{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:13px;
+    font-weight:600;
+    color:#fff;
+}
+.cl-auth-feature-list .material-symbols-outlined{ color:#8FCBFF; flex-shrink:0; }
+
+.cl-auth-form-panel{
+    padding:48px 40px;
+    display:flex;
+    align-items:center;
+}
+.cl-auth-form-inner{ width:100%; }
+
+.cl-auth-logo-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:28px;
+}
+.cl-auth-logo-text{
+    font-weight:800;
+    font-size:17px;
+    color:var(--navy);
+}
+
+.cl-auth-form-inner h1{
+    color:var(--navy);
+    font-size:22px;
+    font-weight:800;
+    margin:0 0 8px;
+}
+
+@media(max-width:760px){
+    .cl-auth-split{ grid-template-columns:1fr; }
+    .cl-auth-illustration-panel{ display:none; }
+    .cl-auth-form-panel{ padding:36px 24px; }
+}

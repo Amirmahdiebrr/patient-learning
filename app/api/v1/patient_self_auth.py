@@ -206,7 +206,7 @@ async def patient_self_register(
         department_id=payload.department_id,
     ))
 
-    return PatientSelfAuthResponse(redirect_url="/home")
+        return PatientSelfAuthResponse(redirect_url="/welcome")
 
 
 @router.post("/patient-auth/login", response_model=PatientSelfAuthResponse)

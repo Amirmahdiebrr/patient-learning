@@ -94,7 +94,7 @@ def create_ghost_session(
     db.add(profile)
     db.flush()
 
-        db.add(PatientRegistration(
+    db.add(PatientRegistration(
         patient_access_profile_id=profile.id,
         first_name="بازدید کننده",
         last_name="(نشست QA ادمین)",
