@@ -122,6 +122,15 @@ class PatientAccessProfile(Base):
     (journey-stage lock bypass) and every patient-facing analytics/
     report query (which must exclude is_ghost=True rows) are the only
     two places that need to special-case this flag.
+
+    hospital_welcome_acknowledged_at (see app/api/v1/welcome.py) is
+    the ONE-TIME hospital-level page shown before onboarding.
+    general_welcome_acknowledged_at is a SEPARATE, later flag: the
+    generic (department_type_id IS NULL) WELCOME-stage lesson content
+    shown as a hero on the patient's /home page the very first time
+    they enter the educational area (post-onboarding) - dismissed
+    forever via /home/acknowledge-welcome once the patient confirms
+    they've read it.
     """
     __tablename__ = "patient_access_profiles"
 
@@ -131,7 +140,7 @@ class PatientAccessProfile(Base):
     hospital_id = Column(UUID(as_uuid=True), ForeignKey("hospitals.id"), nullable=True, index=True)
     department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True, index=True)
 
-       device_fingerprint_hash = Column(String(128), nullable=True)
+    device_fingerprint_hash = Column(String(128), nullable=True)
 
     # Tracks whether this patient has ever acknowledged the one-time,
     # hospital-level welcome page (see app/api/v1/welcome.py) -
@@ -139,6 +148,13 @@ class PatientAccessProfile(Base):
     # self-service patients (patient_self_auth.py) set that at
     # registration time itself and it can't double as this signal.
     hospital_welcome_acknowledged_at = Column(DateTime, nullable=True)
+
+    # Tracks whether this patient has ever acknowledged the generic
+    # WELCOME-stage lesson hero shown on their first visit to /home
+    # (see app/api/v1/patient_home.py). Independent of
+    # hospital_welcome_acknowledged_at - this is a later, separate
+    # confirmation inside the educational area itself.
+    general_welcome_acknowledged_at = Column(DateTime, nullable=True)
 
     is_ghost = Column(Boolean, default=False, nullable=False, index=True)
     ghost_created_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)

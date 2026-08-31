@@ -1,25 +1,108 @@
-{% extends "base.html" %}
+{# app/templates/patient_home.html #}
+{% extends "patient_app_base.html" %}
 {% block title %}مسیر آموزشی شما | CuraLink{% endblock %}
-{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
-{% block content %}
-<div class="cl-container">
+{% block patient_content %}
 
-    <div class="cl-welcome-hero">
-        <div class="cl-welcome-hero-illustration">
-            <img src="/static/img/patient-welcome-nurse.png" alt="پرستار CuraLink">
+    {% if general_welcome_lesson %}
+    <div class="cl-card cl-general-welcome-card">
+        {% if general_welcome_lesson.media_assets %}
+        <div class="cl-media-list">
+            {% for media in general_welcome_lesson.media_assets %}
+            <div class="cl-media-item">
+                {% if media.type.value == "video" %}
+                    <video controls {% if media.thumbnail_url %}poster="{{ media.thumbnail_url }}"{% endif %} style="width:100%; border-radius:var(--radius-sm);">
+                        <source src="{{ media.file_url }}">
+                    </video>
+                {% elif media.type.value == "image" or media.type.value == "animation" %}
+                    <img src="{{ media.file_url }}" style="width:100%; border-radius:var(--radius-sm);">
+                {% elif media.type.value == "pdf" %}
+                    <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; width:auto;">
+                        <span class="material-symbols-outlined cl-icon-sm">picture_as_pdf</span> مشاهده‌ی فایل PDF
+                    </a>
+                {% endif %}
+            </div>
+            {% endfor %}
         </div>
-        <div class="cl-welcome-hero-text">
-            <span class="cl-welcome-hero-badge">خوش‌آمدگویی بخش</span>
-            <h1>
-                {% if patient_first_name %}سلام {{ patient_first_name }} عزیز{% else %}سلام بازدید کننده عزیز{% endif %}
-            </h1>
-            <p class="cl-sub">
-                به بخش {{ department.name }} {{ hospital.name }} خوش آمدید.
-                این مسیر آموزشی بالینی شماست؛ مراحل زیر را به ترتیب دنبال کنید. پس از مطالعه‌ی هر مرحله، مرحله‌ی بعدی برایتان باز می‌شود
-                و در هر زمان می‌توانید به مراحل قبلی هم برگردید. برای دیدن نمودار پیشرفت و نتیجه‌ی آزمون‌ها به «مسیر درمان من» سر بزنید.
-            </p>
+        {% endif %}
+
+        <span class="cl-welcome-hero-badge" style="margin-top:16px;">خوش‌آمدگویی</span>
+        <h1 class="cl-general-welcome-title">{{ general_welcome_lesson.title }}</h1>
+
+        {% if general_welcome_lesson.body_richtext %}
+        <div class="cl-lesson-body">{{ general_welcome_lesson.body_richtext | safe }}</div>
+        {% endif %}
+
+        <form method="post" action="/home/acknowledge-welcome" style="margin-top:20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="cl-btn">مطالعه کردم</button>
+        </form>
+    </div>
+    {% else %}
+
+    <div class="cl-home-header-hero">
+        <div class="cl-home-header-hero-text">
+            <h1>{% if patient_first_name %}سلام {{ patient_first_name }} جان 👋{% else %}سلام، خوش آمدید 👋{% endif %}</h1>
+            <p>به بخش {{ department.name }} {{ hospital.name }} خوش آمدید؛ همراه شما در مسیر درمان هستیم.</p>
         </div>
     </div>
+
+    <div class="cl-stat-row">
+        <div class="cl-stat-card">
+            <span class="cl-stat-card-label">پیشرفت کلی مسیر درمان</span>
+            <div class="cl-progress-ring-wrap">
+                <div class="cl-progress-ring" data-pct="{{ overall_progress_percent }}" style="--pct:{{ overall_progress_percent }};"></div>
+                <a href="/my-journey" class="cl-stat-card-next-btn">مشاهده‌ی جزئیات <span class="material-symbols-outlined cl-icon-sm">chevron_left</span></a>
+            </div>
+        </div>
+
+        <div class="cl-stat-card">
+            <span class="cl-stat-card-label">مرحله‌ی فعلی شما</span>
+            <strong style="color:var(--navy); font-size:15px;">{{ current_stage_name }}</strong>
+            {% if current_stage_lesson_count > 0 %}
+            <div class="cl-progress-track">
+                <div class="cl-progress-fill" style="width:{{ current_stage_percent }}%;"></div>
+            </div>
+            {% endif %}
+            {% if next_lesson_id %}
+            <a href="/lessons/{{ next_lesson_id }}" class="cl-btn cl-btn-sm" style="text-decoration:none; margin-top:4px;">ادامه‌ی آموزش</a>
+            {% endif %}
+        </div>
+
+        <div class="cl-stat-card">
+            <span class="cl-stat-card-label">دستیار بالینی</span>
+            <p class="cl-sub" style="margin:0; font-size:12.5px;">سوالی درباره‌ی مسیر درمان دارید؟</p>
+            <button type="button" class="cl-stat-card-next-btn" style="border:none; background:none; cursor:pointer;" onclick="document.getElementById('cl-assistant-fab')?.click();">
+                شروع گفتگو <span class="material-symbols-outlined cl-icon-sm">chevron_left</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="cl-quick-access-row">
+        <a href="/my-journey" class="cl-quick-access-item">
+            <span class="cl-quick-access-icon"><span class="material-symbols-outlined">route</span></span>
+            <span>مسیر درمان</span>
+        </a>
+        <a href="/my-procedures" class="cl-quick-access-item">
+            <span class="cl-quick-access-icon"><span class="material-symbols-outlined">medical_services</span></span>
+            <span>نوع عمل من</span>
+        </a>
+        <a href="/my-lessons" class="cl-quick-access-item">
+            <span class="cl-quick-access-icon"><span class="material-symbols-outlined">auto_stories</span></span>
+            <span>درس‌ها</span>
+        </a>
+        <a href="/my-surgery-education" class="cl-quick-access-item">
+            <span class="cl-quick-access-icon"><span class="material-symbols-outlined">quiz</span></span>
+            <span>آموزش عمل جراحی</span>
+        </a>
+        <a href="/profile" class="cl-quick-access-item">
+            <span class="cl-quick-access-icon"><span class="material-symbols-outlined">account_circle</span></span>
+            <span>پروفایل</span>
+        </a>
+    </div>
+
+    {% endif %}
+
+    {% include "patient_surgery_subnav.html" %}
 
     {% if timeline|length == 0 %}
     <div class="cl-card">
@@ -73,25 +156,27 @@
                 {% if stage.quiz_questions %}
                 <div class="cl-journey-stage-quiz">
                     <h4 class="cl-journey-stage-quiz-title">آزمون این مرحله</h4>
-                    {% for q in stage.quiz_questions %}
-                    <div class="cl-quiz-question" data-question-id="{{ q.id }}">
-                        {% if q.question_image_url %}
-                        <img src="{{ q.question_image_url }}" class="cl-quiz-image">
-                        {% endif %}
-                        <p class="cl-quiz-text">{{ q.question_text }}</p>
-                        <div class="cl-quiz-options">
-                            {% for opt in q.options %}
-                            <button class="cl-quiz-option" data-option-id="{{ opt.id }}">
-                                {% if opt.option_image_url %}
-                                <img src="{{ opt.option_image_url }}" class="cl-quiz-option-image">
-                                {% endif %}
-                                <span>{{ opt.option_text }}</span>
-                            </button>
-                            {% endfor %}
+                    <div class="cl-quiz-block">
+                        {% for q in stage.quiz_questions %}
+                        <div class="cl-quiz-question" data-question-id="{{ q.id }}">
+                            {% if q.question_image_url %}
+                            <img src="{{ q.question_image_url }}" class="cl-quiz-image">
+                            {% endif %}
+                            <p class="cl-quiz-text">{{ q.question_text }}</p>
+                            <div class="cl-quiz-options">
+                                {% for opt in q.options %}
+                                <button class="cl-quiz-option" data-option-id="{{ opt.id }}">
+                                    {% if opt.option_image_url %}
+                                    <img src="{{ opt.option_image_url }}" class="cl-quiz-option-image">
+                                    {% endif %}
+                                    <span>{{ opt.option_text }}</span>
+                                </button>
+                                {% endfor %}
+                            </div>
+                            <p class="cl-quiz-result" style="display:none;"></p>
                         </div>
-                        <p class="cl-quiz-result" style="display:none;"></p>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 {% endif %}
             </details>
@@ -101,10 +186,15 @@
     </div>
     {% endif %}
 
-</div>
+<style>
+.cl-general-welcome-card{ text-align:center; max-width:640px; margin-top:20px; }
+.cl-general-welcome-title{ color:var(--navy); font-size:22px; font-weight:800; margin:14px 0 12px; }
+.cl-general-welcome-card .cl-lesson-body{ text-align:start; }
+</style>
+
 {% endblock %}
 
-{% block scripts %}
+{% block patient_scripts %}
 <script>
 (function () {
     document.querySelectorAll(".cl-quiz-question").forEach(function (questionEl) {
@@ -137,6 +227,12 @@
                 resultEl.style.display = "block";
                 resultEl.textContent = data.is_correct ? "✓ پاسخ درست بود." : "✗ پاسخ نادرست بود.";
                 resultEl.className = "cl-quiz-result " + (data.is_correct ? "cl-quiz-result-correct" : "cl-quiz-result-wrong");
+
+                const allAnswered = Array.from(document.querySelectorAll(".cl-quiz-question"))
+                    .every(function (q) { return q.dataset.answered === "true"; });
+                if (allAnswered) {
+                    setTimeout(function () { window.location.reload(); }, 900);
+                }
             });
         });
     });

@@ -24,21 +24,32 @@ mirrors the existing hospital-override pattern and needs no AI -
 matching is purely by department_type_id/procedure_id/journey_stage
 foreign keys.
 
-get_journey_timeline() builds the patient's home-page journey view:
-every JourneyStage up to and including the patient's current stage,
-each carrying its own lessons AND its own stage-level quiz. A stage
-is "completed" once every one of its lessons has a COMPLETED
-ProgressRecord; a stage is "unlocked" once the previous stage in the
-timeline is completed (the first stage is always unlocked).
+get_stage_completion() is the SINGLE SOURCE OF TRUTH for "is this
+stage's content fully done for this patient" - every lesson has a
+COMPLETED ProgressRecord AND every stage-level quiz question has at
+least one QuizAttempt. Both get_journey_timeline() (for the lock/badge
+UI) and patient_journey_state_machine.try_auto_advance_stage() (for
+whether to move current_stage forward) call this exact same function.
+
+get_journey_timeline() builds the patient's home-page SEQUENTIAL,
+LOCKED journey view. WELCOME's generic hospital-wide lesson is
+excluded (shown once on /home hero instead). PROCEDURE_INTRO /
+BEFORE_PROCEDURE / AFTER_PROCEDURE are excluded entirely - they are
+never locked and never gate progression (see
+patient_journey_state_machine.OPTIONAL_SURGERY_STAGES); their content
+is resolved instead by get_surgery_education_groups() and rendered on
+the dedicated /my-surgery-education page.
+
+get_patient_lesson_library() is a flat, searchable/filterable view
+over the exact same already-resolved, already-authorized content:
+every lesson in an UNLOCKED main-journey stage plus every lesson in
+the surgery-education groups. It introduces no new content-resolution
+rule - it just re-shapes get_journey_timeline +
+get_surgery_education_groups output for the /my-lessons library page.
 
 GHOST MODE EXCEPTION: if patient_access_profile_id belongs to a ghost
-profile (PatientAccessProfile.is_ghost=True - see
-app/services/ghost_session_service.py), every stage in the timeline
-is treated as unlocked regardless of completion state, so a
-super_admin QA-browsing any hospital/department can freely see every
-stage's content without needing to "complete" earlier ones first.
-This is the ONLY behavioral difference ghost profiles get anywhere in
-this file - lesson/quiz resolution itself is completely unmodified.
+profile (PatientAccessProfile.is_ghost=True), every stage in the
+timeline is treated as unlocked regardless of completion state.
 """
 
 import uuid
@@ -54,12 +65,25 @@ from app.infrastructure.db.models import (
     PatientAccessProfile,
     LessonOverrideLevel,
     QuizQuestion,
+    QuizAttempt,
     JourneyStage,
     JourneyStageCode,
     ProgressRecord,
     LessonProgressStatus,
 )
 from app.services.patient_procedure_service import get_effective_procedure_ids
+
+_OPTIONAL_SURGERY_STAGES = {
+    JourneyStageCode.PROCEDURE_INTRO,
+    JourneyStageCode.BEFORE_PROCEDURE,
+    JourneyStageCode.AFTER_PROCEDURE,
+}
+
+_SURGERY_EDUCATION_STAGE_LABELS: list[tuple[JourneyStageCode, str]] = [
+    (JourneyStageCode.PROCEDURE_INTRO, "آشنایی با عمل"),
+    (JourneyStageCode.BEFORE_PROCEDURE, "قبل از عمل"),
+    (JourneyStageCode.AFTER_PROCEDURE, "بعد از عمل"),
+]
 
 
 def _rule_matches(
@@ -166,7 +190,7 @@ def get_lessons_for_stage(
     for section in sections:
         for lesson in section.lessons:
             if lesson.override_level == LessonOverrideLevel.HOSPITAL:
-                continue  # only surfaced via _resolve_effective_lesson below
+                continue
 
             effective_lesson = _resolve_effective_lesson(db, lesson, hospital_id)
             if effective_lesson is None:
@@ -248,6 +272,42 @@ def get_stage_quiz_for_journey(
     return get_stage_quiz_for_stage(db, journey.current_stage, department_type_id, procedure_ids=procedure_ids)
 
 
+def get_stage_completion(
+    db: Session,
+    patient_access_profile_id: uuid.UUID,
+    lessons: list[Lesson],
+    quiz_questions: list[QuizQuestion],
+) -> tuple[bool, set[uuid.UUID]]:
+    if not lessons and not quiz_questions:
+        return False, set()
+
+    completed_lesson_ids: set[uuid.UUID] = set()
+    if lessons:
+        lesson_ids = [l.id for l in lessons]
+        completed_lesson_ids = {
+            row[0] for row in db.query(ProgressRecord.lesson_id).filter(
+                ProgressRecord.patient_access_profile_id == patient_access_profile_id,
+                ProgressRecord.lesson_id.in_(lesson_ids),
+                ProgressRecord.status == LessonProgressStatus.COMPLETED,
+            ).all()
+        }
+        if len(completed_lesson_ids) < len(lesson_ids):
+            return False, completed_lesson_ids
+
+    if quiz_questions:
+        question_ids = [q.id for q in quiz_questions]
+        answered_ids = {
+            row[0] for row in db.query(QuizAttempt.question_id).filter(
+                QuizAttempt.patient_access_profile_id == patient_access_profile_id,
+                QuizAttempt.question_id.in_(question_ids),
+            ).distinct().all()
+        }
+        if len(answered_ids) < len(question_ids):
+            return False, completed_lesson_ids
+
+    return True, completed_lesson_ids
+
+
 def get_journey_timeline(
     db: Session,
     journey: PatientJourneyProfile,
@@ -262,7 +322,10 @@ def get_journey_timeline(
 
     stages = (
         db.query(JourneyStage)
-        .filter(JourneyStage.display_order <= current_stage_row.display_order)
+        .filter(
+            JourneyStage.display_order <= current_stage_row.display_order,
+            JourneyStage.code.notin_(_OPTIONAL_SURGERY_STAGES),
+        )
         .order_by(JourneyStage.display_order)
         .all()
     )
@@ -283,28 +346,24 @@ def get_journey_timeline(
             db, journey, stage.code, hospital_id, department_id, department_type_id,
             procedure_ids=procedure_ids,
         )
+
+        if stage.code == JourneyStageCode.WELCOME:
+            lessons = [l for l in lessons if l.section.department_type_id is not None]
+
         quiz_questions = get_stage_quiz_for_stage(db, stage.code, department_type_id, procedure_ids=procedure_ids)
 
         if not lessons and not quiz_questions:
             continue
 
-        completed_lesson_ids: set[uuid.UUID] = set()
-        if lessons:
-            lesson_ids = [l.id for l in lessons]
-            completed_lesson_ids = {
-                row[0] for row in db.query(ProgressRecord.lesson_id).filter(
-                    ProgressRecord.patient_access_profile_id == patient_access_profile_id,
-                    ProgressRecord.lesson_id.in_(lesson_ids),
-                    ProgressRecord.status == LessonProgressStatus.COMPLETED,
-                ).all()
-            }
+        stage_completed, completed_lesson_ids = get_stage_completion(
+            db, patient_access_profile_id, lessons, quiz_questions,
+        )
 
         lessons_with_status = [
             {"lesson": lesson, "is_completed": lesson.id in completed_lesson_ids}
             for lesson in lessons
         ]
 
-        stage_completed = bool(lessons) and len(completed_lesson_ids) == len(lessons)
         stage_unlocked = True if is_ghost_profile else previous_completed
 
         timeline.append({
@@ -320,3 +379,97 @@ def get_journey_timeline(
         previous_completed = True if is_ghost_profile else (stage_completed if stage_unlocked else False)
 
     return timeline
+
+
+def get_surgery_education_groups(
+    db: Session,
+    journey: PatientJourneyProfile,
+    patient_access_profile_id: uuid.UUID,
+    hospital_id: uuid.UUID,
+    department_id: uuid.UUID,
+    department_type_id: uuid.UUID | None,
+) -> list[dict]:
+    procedure_ids = get_effective_procedure_ids(db, journey)
+
+    groups: list[dict] = []
+    for stage_code, label in _SURGERY_EDUCATION_STAGE_LABELS:
+        lessons = get_lessons_for_stage(
+            db, journey, stage_code, hospital_id, department_id, department_type_id,
+            procedure_ids=procedure_ids,
+        )
+        quiz_questions = get_stage_quiz_for_stage(db, stage_code, department_type_id, procedure_ids=procedure_ids)
+
+        if not lessons and not quiz_questions:
+            continue
+
+        _, completed_lesson_ids = get_stage_completion(db, patient_access_profile_id, lessons, quiz_questions)
+
+        lessons_with_status = [
+            {"lesson": lesson, "is_completed": lesson.id in completed_lesson_ids}
+            for lesson in lessons
+        ]
+
+        groups.append({
+            "stage_code": stage_code.value,
+            "stage_name": label,
+            "lessons": lessons_with_status,
+            "quiz_questions": quiz_questions,
+        })
+
+    return groups
+
+
+def get_patient_lesson_library(
+    db: Session,
+    journey: PatientJourneyProfile,
+    patient_access_profile_id: uuid.UUID,
+    hospital_id: uuid.UUID,
+    department_id: uuid.UUID,
+    department_type_id: uuid.UUID | None,
+) -> list[dict]:
+    """
+    Flat, browsable list of every lesson currently accessible to the
+    patient: every lesson in an UNLOCKED main-journey stage (locked
+    future stages excluded) plus every lesson in the always-optional
+    surgery-education groups. Backs the /my-lessons search/filter
+    library page - purely a different presentation of data the
+    patient could already reach through /home and
+    /my-surgery-education; no new content-resolution rules.
+    """
+    items: list[dict] = []
+
+    timeline = get_journey_timeline(
+        db, journey, patient_access_profile_id,
+        hospital_id, department_id, department_type_id,
+    )
+    for stage in timeline:
+        if not stage["is_unlocked"]:
+            continue
+        for entry in stage["lessons"]:
+            lesson = entry["lesson"]
+            items.append({
+                "lesson": lesson,
+                "stage_code": stage["stage_code"],
+                "stage_name": stage["stage_name"],
+                "is_completed": entry["is_completed"],
+                "media_types": sorted({m.type.value for m in lesson.media_assets}),
+                "has_quiz": bool(lesson.quiz_questions),
+            })
+
+    surgery_groups = get_surgery_education_groups(
+        db, journey, patient_access_profile_id,
+        hospital_id, department_id, department_type_id,
+    )
+    for group in surgery_groups:
+        for entry in group["lessons"]:
+            lesson = entry["lesson"]
+            items.append({
+                "lesson": lesson,
+                "stage_code": group["stage_code"],
+                "stage_name": group["stage_name"],
+                "is_completed": entry["is_completed"],
+                "media_types": sorted({m.type.value for m in lesson.media_assets}),
+                "has_quiz": bool(lesson.quiz_questions),
+            })
+
+    return items

@@ -23,6 +23,7 @@ from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.patient_home import router as patient_home_router
 from app.api.v1.patient_journey_page import router as patient_journey_page_router
 from app.api.v1.patient_lessons import router as patient_lessons_router
+from app.api.v1.patient_lesson_library import router as patient_lesson_library_router
 from app.api.v1.patient_self_auth import router as patient_self_auth_router
 from app.api.v1.patient_profile import router as patient_profile_router
 from app.api.v1.patient_procedures import router as patient_procedures_router
@@ -64,7 +65,8 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 ALL_ROUTERS = [
     entry_router, welcome_router, onboarding_router, patient_home_router, patient_journey_page_router,
-    patient_lessons_router, patient_self_auth_router, patient_profile_router, patient_procedures_router,
+    patient_lessons_router, patient_lesson_library_router, patient_self_auth_router, patient_profile_router,
+    patient_procedures_router,
     assistant_router,
     admin_auth_router, admin_users_router,
     admin_hospitals_router, admin_qr_router, admin_content_router, admin_smart_import_router,

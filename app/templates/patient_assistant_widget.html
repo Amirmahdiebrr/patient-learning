@@ -1,0 +1,121 @@
+{# app/templates/patient_assistant_widget.html #}
+<div id="cl-assistant-widget-root">
+    <button type="button" id="cl-assistant-fab" aria-label="باز کردن دستیار بالینی" aria-expanded="false">
+        <img src="/static/img/patient-welcome-nurse.png" alt="" aria-hidden="true">
+    </button>
+
+    <div id="cl-assistant-popup" class="cl-assistant-popup" role="dialog" aria-label="دستیار بالینی CuraLink" aria-hidden="true">
+        <div class="cl-assistant-popup-header">
+            <span><span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">psychology</span> دستیار بالینی CuraLink</span>
+            <button type="button" id="cl-assistant-popup-close" aria-label="بستن گفتگو">
+                <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">close</span>
+            </button>
+        </div>
+        <div class="cl-assistant-popup-messages" id="cl-assistant-popup-messages" role="log" aria-live="polite" aria-relevant="additions">
+            <div class="cl-chat-empty-state" id="cl-assistant-popup-empty">
+                <span class="material-symbols-outlined" aria-hidden="true">chat_bubble</span>
+                سوال خود را درباره‌ی روند درمان بپرسید.
+            </div>
+        </div>
+        <form class="cl-chat-input-row" id="cl-assistant-popup-form">
+            <label for="cl-assistant-popup-input" class="cl-sr-only">پیام شما به دستیار بالینی</label>
+            <input type="text" id="cl-assistant-popup-input" class="cl-chat-input" placeholder="سوال خود را بنویسید..." autocomplete="off">
+            <button type="submit" class="cl-chat-send" id="cl-assistant-popup-send">ارسال</button>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const root = document.getElementById("cl-assistant-widget-root");
+    if (root && root.parentElement !== document.body) {
+        document.body.appendChild(root);
+    }
+
+    const fab = document.getElementById("cl-assistant-fab");
+    const popup = document.getElementById("cl-assistant-popup");
+    const closeBtn = document.getElementById("cl-assistant-popup-close");
+    const messagesEl = document.getElementById("cl-assistant-popup-messages");
+    const emptyStateEl = document.getElementById("cl-assistant-popup-empty");
+    const form = document.getElementById("cl-assistant-popup-form");
+    const input = document.getElementById("cl-assistant-popup-input");
+    const sendBtn = document.getElementById("cl-assistant-popup-send");
+
+    if (!fab || !popup) return;
+
+    let conversation = [];
+    let isOpen = false;
+
+    function toggle(open) {
+        isOpen = open;
+        popup.classList.toggle("cl-assistant-popup-open", isOpen);
+        popup.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        fab.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        if (isOpen) input.focus();
+    }
+
+    fab.addEventListener("click", function () { toggle(!isOpen); });
+    closeBtn.addEventListener("click", function () { toggle(false); fab.focus(); });
+
+    function addMessage(role, text) {
+        if (emptyStateEl) { emptyStateEl.remove(); }
+        const bubble = document.createElement("div");
+        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
+        bubble.textContent = text;
+        messagesEl.appendChild(bubble);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping() {
+        const typing = document.createElement("div");
+        typing.className = "cl-chat-typing";
+        typing.id = "cl-assistant-popup-typing";
+        typing.innerHTML = "<span></span><span></span><span></span>";
+        messagesEl.appendChild(typing);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+        const typing = document.getElementById("cl-assistant-popup-typing");
+        if (typing) typing.remove();
+    }
+
+    form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+
+        addMessage("user", question);
+        conversation.push({ role: "user", content: question });
+        input.value = "";
+        sendBtn.disabled = true;
+        showTyping();
+
+        try {
+            const res = await fetch("/assistant/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question: question,
+                    history: conversation,
+                    lesson_id: window.CURALINK_LESSON_ID || null,
+                }),
+            });
+            const data = await res.json();
+            hideTyping();
+
+            if (!res.ok) {
+                addMessage("ai", data.error || "خطایی رخ داد.");
+            } else {
+                addMessage("ai", data.answer);
+                conversation.push({ role: "assistant", content: data.answer });
+            }
+        } catch (err) {
+            hideTyping();
+            addMessage("ai", "ارتباط با سرور برقرار نشد.");
+        } finally {
+            sendBtn.disabled = false;
+        }
+    });
+})();
+</script>

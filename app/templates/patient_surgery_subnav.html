@@ -1,0 +1,50 @@
+{# app/templates/patient_surgery_subnav.html #}
+<div class="cl-surgery-subnav">
+    <a href="/my-procedures" class="cl-surgery-subnav-tab {% if active_surgery_tab == 'procedures' %}cl-surgery-subnav-tab-active{% endif %}">
+        <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">medical_services</span>
+        تعیین نوع عمل
+    </a>
+    <a href="/my-surgery-education" class="cl-surgery-subnav-tab {% if active_surgery_tab == 'education' %}cl-surgery-subnav-tab-active{% endif %}">
+        <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">auto_stories</span>
+        آموزش‌های عمل جراحی
+    </a>
+</div>
+
+<style>
+.cl-surgery-subnav{
+    display:flex;
+    gap:8px;
+    max-width:640px;
+    margin:18px auto 0;
+    background:var(--glass-bg-strong);
+    border:1px solid rgba(255,255,255,.7);
+    border-radius:var(--radius-full);
+    padding:6px;
+    box-shadow:var(--shadow-sm);
+}
+.cl-surgery-subnav-tab{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    text-decoration:none;
+    color:var(--navy);
+    font-size:13px;
+    font-weight:700;
+    padding:10px 12px;
+    border-radius:var(--radius-full);
+    transition:background .18s ease, color .18s ease;
+}
+.cl-surgery-subnav-tab .material-symbols-outlined{ font-size:17px; color:var(--color-accent); }
+.cl-surgery-subnav-tab:hover{ background:var(--sky); }
+.cl-surgery-subnav-tab-active{
+    background:var(--gradient-primary);
+    color:#fff;
+}
+.cl-surgery-subnav-tab-active .material-symbols-outlined{ color:#fff; }
+
+@media(max-width:480px){
+    .cl-surgery-subnav-tab span:not(.material-symbols-outlined){ font-size:12px; }
+}
+</style>

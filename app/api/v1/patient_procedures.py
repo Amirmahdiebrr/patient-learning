@@ -1,4 +1,5 @@
 # app/api/v1/patient_procedures.py
+# app/api/v1/patient_procedures.py
 """
 app/api/v1/patient_procedures.py
 
@@ -7,6 +8,11 @@ procedure(s) apply to them within their department - not just once
 at onboarding. Their before/after-procedure education (and stage
 quiz) is then resolved as the union of content scoped to whichever
 procedures they've selected - see content_targeting_service.py.
+
+/my-surgery-education renders the always-optional "آشنایی با عمل /
+قبل از عمل / بعد از عمل" groups - reached via the separate surgery
+sub-nav (app/templates/patient_surgery_subnav.html), never part of
+the locked main timeline on /home.
 """
 
 import uuid
@@ -21,6 +27,7 @@ from app.infrastructure.db.models import PatientJourneyProfile
 from app.api.deps import AccessContext, get_access_context, get_active_journey
 from app.services import patient_procedure_service
 from app.services.content_admin.procedure_service import list_procedures
+from app.services.content_targeting_service import get_surgery_education_groups
 from app.core.templates import templates
 
 router = APIRouter(tags=["patient_procedures"])
@@ -49,6 +56,33 @@ async def my_procedures_page(
             "request": request,
             "department": context.department,
             "has_department_type": context.department.department_type_id is not None,
+            "active_surgery_tab": "procedures",
+        },
+    )
+
+
+@router.get("/my-surgery-education")
+async def my_surgery_education_page(
+    request: Request,
+    context: AccessContext = Depends(get_access_context),
+    journey: PatientJourneyProfile = Depends(get_active_journey),
+    db: Session = Depends(get_db),
+):
+    groups = get_surgery_education_groups(
+        db, journey,
+        patient_access_profile_id=context.patient_profile.id,
+        hospital_id=context.hospital_id,
+        department_id=context.department_id,
+        department_type_id=context.department.department_type_id,
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "patient_surgery_education.html",
+        {
+            "request": request,
+            "groups": groups,
+            "active_surgery_tab": "education",
         },
     )
 

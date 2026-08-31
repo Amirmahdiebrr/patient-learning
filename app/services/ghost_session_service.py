@@ -22,12 +22,22 @@ patient hits. Two deliberate bypasses exist ONLY for is_ghost rows:
 Ghost profiles are excluded from every patient-facing analytics/
 report query - see the is_ghost filters in admin_patient_report.py
 and patient_monitoring_service.py.
+
+delete_ghost_session() clears EVERY table that carries a FK pointing
+at patient_access_profiles.id before deleting the profile row itself
+- otherwise Postgres raises a ForeignKeyViolation, which previously
+surfaced to the admin panel as an unhandled 500 ("خطای ناشناخته")
+instead of a clean, catchable error. Tables covered: QuizAttempt,
+FavoriteRecord, ProgressRecord, FeedbackRecord, FollowUpTask (deleted),
+PatientReferral (detached, not deleted - it's real referral data),
+PatientProcedureSelection, PatientJourneyProfile, PatientRegistration.
 """
 
 import uuid
 from datetime import datetime
 
 from fastapi import Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -35,7 +45,8 @@ from app.core.csrf import issue_csrf_cookie
 from app.infrastructure.db.models import (
     PatientAccessProfile, PatientRegistration, PatientJourneyProfile,
     JourneyStageCode, Hospital, Department, Procedure,
-    ProgressRecord, FavoriteRecord, QuizAttempt,
+    ProgressRecord, FavoriteRecord, QuizAttempt, FeedbackRecord,
+    FollowUpTask, PatientReferral, PatientProcedureSelection,
 )
 from app.services import access_gate_service
 
@@ -203,8 +214,21 @@ def delete_ghost_session(db: Session, ghost_profile_id: uuid.UUID) -> None:
     db.query(QuizAttempt).filter(QuizAttempt.patient_access_profile_id == profile.id).delete(synchronize_session=False)
     db.query(FavoriteRecord).filter(FavoriteRecord.patient_access_profile_id == profile.id).delete(synchronize_session=False)
     db.query(ProgressRecord).filter(ProgressRecord.patient_access_profile_id == profile.id).delete(synchronize_session=False)
+    db.query(FeedbackRecord).filter(FeedbackRecord.patient_access_profile_id == profile.id).delete(synchronize_session=False)
+    db.query(FollowUpTask).filter(FollowUpTask.patient_access_profile_id == profile.id).delete(synchronize_session=False)
+    db.query(PatientProcedureSelection).filter(
+        PatientProcedureSelection.patient_access_profile_id == profile.id
+    ).delete(synchronize_session=False)
+    db.query(PatientReferral).filter(PatientReferral.patient_access_profile_id == profile.id).update(
+        {PatientReferral.patient_access_profile_id: None}, synchronize_session=False
+    )
     db.query(PatientJourneyProfile).filter(PatientJourneyProfile.patient_access_profile_id == profile.id).delete(synchronize_session=False)
     db.query(PatientRegistration).filter(PatientRegistration.patient_access_profile_id == profile.id).delete(synchronize_session=False)
 
     db.delete(profile)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise GhostSessionError(f"حذف نشست روح ممکن نشد: {exc.orig}") from exc

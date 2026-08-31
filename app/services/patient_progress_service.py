@@ -1,3 +1,4 @@
+# app/services/patient_progress_service.py
 """
 app/services/patient_progress_service.py
 
@@ -6,6 +7,10 @@ per-stage lesson-completion counts/percentages, an overall progress
 percentage, and the patient's full quiz attempt history (correct/
 incorrect per question, across both lesson-level and stage-level
 quizzes).
+
+stage_code is included alongside stage_name purely so the template
+can pick a stable per-stage icon (see patient_my_journey.html) without
+string-matching on the (admin-editable) display name.
 """
 
 import uuid
@@ -42,9 +47,12 @@ def get_journey_progress(
         total_completed += stage_completed
 
         stages.append({
+            "stage_code": stage["stage_code"],
             "stage_name": stage["stage_name"],
             "is_current": stage["is_current"],
             "is_completed": stage["is_completed"],
+            "is_unlocked": stage["is_unlocked"],
+            "lessons": stage["lessons"],
             "total_lessons": stage_total,
             "completed_lessons": stage_completed,
             "percent": percent,

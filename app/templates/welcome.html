@@ -13,11 +13,39 @@
             تا مسیر آموزشی اختصاصی بخش شما آماده شود.
         </p>
 
-        {% if lessons|length == 0 %}
-        <p style="color:#8CA0B3; text-align:center;">فعلاً محتوایی برای این مرحله ثبت نشده است.</p>
-        {% else %}
-        <div class="cl-lesson-list">
-            {% for lesson in lessons %}
+        {% if primary_lesson %}
+        <div class="cl-welcome-primary-lesson">
+            {% if primary_lesson.media_assets %}
+            <div class="cl-media-list">
+                {% for media in primary_lesson.media_assets %}
+                <div class="cl-media-item">
+                    {% if media.type.value == "video" %}
+                        <video controls {% if media.thumbnail_url %}poster="{{ media.thumbnail_url }}"{% endif %} style="width:100%; border-radius:var(--radius-sm);">
+                            <source src="{{ media.file_url }}">
+                        </video>
+                    {% elif media.type.value == "image" or media.type.value == "animation" %}
+                        <img src="{{ media.file_url }}" style="width:100%; border-radius:var(--radius-sm);">
+                    {% elif media.type.value == "pdf" %}
+                        <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; width:auto;">
+                            <span class="material-symbols-outlined cl-icon-sm">picture_as_pdf</span> مشاهده‌ی فایل PDF
+                        </a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <h2 class="cl-welcome-primary-lesson-title">{{ primary_lesson.title }}</h2>
+
+            {% if primary_lesson.body_richtext %}
+            <div class="cl-lesson-body">{{ primary_lesson.body_richtext | safe }}</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if secondary_lessons|length > 0 %}
+        <div class="cl-lesson-list" style="margin-top:20px;">
+            {% for lesson in secondary_lessons %}
             <a href="/lessons/{{ lesson.id }}" class="cl-lesson-item" style="text-decoration:none; display:block;">
                 <h3>{{ lesson.title }}</h3>
             </a>
@@ -25,10 +53,24 @@
         </div>
         {% endif %}
 
+        {% if not primary_lesson and secondary_lessons|length == 0 %}
+        <p style="color:#8CA0B3; text-align:center;">فعلاً محتوایی برای این مرحله ثبت نشده است.</p>
+        {% endif %}
+
         <form method="post" action="/welcome/continue" style="margin-top:24px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="cl-btn">ادامه و تکمیل اطلاعات</button>
+            <button type="submit" class="cl-btn">تایید و ورود به مسیر آموزشی</button>
         </form>
     </div>
 </div>
+
+<style>
+.cl-welcome-primary-lesson{ text-align:start; margin-top:14px; }
+.cl-welcome-primary-lesson-title{
+    color:var(--navy);
+    font-size:18px;
+    font-weight:800;
+    margin:14px 0 10px;
+}
+</style>
 {% endblock %}

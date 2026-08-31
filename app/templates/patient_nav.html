@@ -1,21 +1,91 @@
 {# app/templates/patient_nav.html #}
-<nav class="cl-patient-navbar-links">
-    <a href="/home" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">home</span><span>خانه</span></a>
-    <a href="/my-journey" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">route</span><span>مسیر درمان من</span></a>
-    <a href="/my-procedures" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">medical_services</span><span>نوع عمل من</span></a>
-    <a href="/assistant" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">psychology</span><span>دستیار بالینی</span></a>
-    <a href="/profile" class="cl-patient-navbar-link"><span class="material-symbols-outlined cl-icon-sm">account_circle</span><span>پروفایل بیمار</span></a>
-    <button type="button" id="patient-nav-logout-btn" class="cl-patient-navbar-link cl-patient-navbar-logout">
-        <span class="material-symbols-outlined cl-icon-sm">logout</span><span>خروج</span>
-    </button>
-</nav>
+{% set current_path = request.url.path %}
+<aside class="cl-sidebar" id="cl-sidebar">
+    <div class="cl-sidebar-top">
+        <a href="/home" class="cl-sidebar-logo">
+            <img src="/static/img/logo.png" alt="">
+            <span class="cl-sidebar-logo-text">CuraLink</span>
+        </a>
+        <button type="button" class="cl-sidebar-collapse-btn" id="cl-sidebar-collapse-btn" aria-label="جمع/باز کردن منو" title="جمع/باز کردن منو">
+            <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+        </button>
+    </div>
+
+    <nav class="cl-sidebar-links">
+        <a href="/home" class="cl-sidebar-link {% if current_path == '/home' %}cl-sidebar-link-active{% endif %}" title="خانه">
+            <span class="material-symbols-outlined" aria-hidden="true">home</span><span class="cl-sidebar-link-text">خانه</span>
+        </a>
+        <a href="/my-journey" class="cl-sidebar-link {% if current_path == '/my-journey' %}cl-sidebar-link-active{% endif %}" title="مسیر درمان من">
+            <span class="material-symbols-outlined" aria-hidden="true">route</span><span class="cl-sidebar-link-text">مسیر درمان من</span>
+        </a>
+        <a href="/my-lessons" class="cl-sidebar-link {% if current_path == '/my-lessons' %}cl-sidebar-link-active{% endif %}" title="آموزش‌های من">
+            <span class="material-symbols-outlined" aria-hidden="true">auto_stories</span><span class="cl-sidebar-link-text">آموزش‌های من</span>
+        </a>
+        <a href="/my-procedures" class="cl-sidebar-link {% if current_path in ['/my-procedures', '/my-surgery-education'] %}cl-sidebar-link-active{% endif %}" title="عمل جراحی">
+            <span class="material-symbols-outlined" aria-hidden="true">medical_services</span><span class="cl-sidebar-link-text">عمل جراحی</span>
+        </a>
+        <a href="/profile" class="cl-sidebar-link {% if current_path == '/profile' %}cl-sidebar-link-active{% endif %}" title="پروفایل من">
+            <span class="material-symbols-outlined" aria-hidden="true">account_circle</span><span class="cl-sidebar-link-text">پروفایل من</span>
+        </a>
+    </nav>
+
+    <div class="cl-sidebar-footer">
+        <button type="button" id="patient-nav-logout-btn" class="cl-sidebar-link cl-sidebar-logout-btn" title="خروج">
+            <span class="material-symbols-outlined" aria-hidden="true" style="color:var(--color-danger);">logout</span><span class="cl-sidebar-link-text">خروج</span>
+        </button>
+    </div>
+</aside>
+
 <script>
 (function () {
-    var btn = document.getElementById("patient-nav-logout-btn");
-    if (!btn) return;
-    btn.addEventListener("click", async function () {
-        try { await fetch("/patient-auth/logout", { method: "POST", credentials: "same-origin" }); }
-        finally { window.location.href = "/login"; }
-    });
+    var logoutBtn = document.getElementById("patient-nav-logout-btn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", async function () {
+            try { await fetch("/patient-auth/logout", { method: "POST", credentials: "same-origin" }); }
+            finally { window.location.href = "/login"; }
+        });
+    }
+
+    var sidebar = document.getElementById("cl-sidebar");
+    var backdrop = document.getElementById("cl-sidebar-backdrop");
+    var menuBtn = document.getElementById("cl-mobile-menu-btn");
+    var collapseBtn = document.getElementById("cl-sidebar-collapse-btn");
+    if (!sidebar) return;
+
+    // Mobile off-canvas open/close
+    function closeMobileSidebar() {
+        sidebar.classList.remove("cl-sidebar-open");
+        if (backdrop) backdrop.classList.remove("cl-sidebar-backdrop-open");
+        if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+    }
+    function openMobileSidebar() {
+        sidebar.classList.add("cl-sidebar-open");
+        if (backdrop) backdrop.classList.add("cl-sidebar-backdrop-open");
+        if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
+    }
+    if (menuBtn) {
+        menuBtn.addEventListener("click", function () {
+            if (sidebar.classList.contains("cl-sidebar-open")) closeMobileSidebar(); else openMobileSidebar();
+        });
+    }
+    if (backdrop) backdrop.addEventListener("click", closeMobileSidebar);
+
+    // Desktop collapse (icon-only rail), persisted
+    var STORAGE_KEY = "cl_sidebar_collapsed";
+    function applyCollapsedState(collapsed) {
+        sidebar.classList.toggle("cl-sidebar-collapsed", collapsed);
+        if (collapseBtn) collapseBtn.setAttribute("aria-pressed", collapsed ? "true" : "false");
+    }
+    var savedState = "false";
+    try { savedState = window.localStorage.getItem(STORAGE_KEY) || "false"; } catch (e) {}
+    applyCollapsedState(savedState === "true");
+
+    if (collapseBtn) {
+        collapseBtn.addEventListener("click", function () {
+            var willCollapse = !sidebar.classList.contains("cl-sidebar-collapsed");
+            applyCollapsedState(willCollapse);
+            try { window.localStorage.setItem(STORAGE_KEY, willCollapse ? "true" : "false"); } catch (e) {}
+        });
+    }
 })();
 </script>

@@ -1,4 +1,5 @@
 # app/api/v1/patient_self_auth.py
+# app/api/v1/patient_self_auth.py
 """
 app/api/v1/patient_self_auth.py
 
@@ -170,10 +171,11 @@ async def patient_self_register(
     )
     db.add(registration)
 
-    # بیمارانی که قرار است عمل جراحی داشته باشند، اول وارد «آشنایی با
-    # عمل» می‌شوند (محتوای مخصوص همان عملی که انتخاب کرده‌اند) و بعد
-    # از آن به «قبل از عمل» می‌روند - نه مستقیم.
-    target_stage = JourneyStageCode.PROCEDURE_INTRO if payload.has_surgery else JourneyStageCode.ADMISSION
+    # آموزش «آشنایی با عمل / قبل از عمل / بعد از عمل» دیگر بخشی از
+    # روند ترتیبی اصلی نیست - همه‌ی بیماران، با یا بدون عمل جراحی،
+    # مستقیم وارد «پذیرش در بخش» می‌شوند. آموزش‌های مرتبط با عمل
+    # (در صورت انتخاب عمل) در بخش جداگانه‌ی «آموزش‌های مرتبط با عمل
+    # جراحی» روی صفحه‌ی اصلی همیشه در دسترس‌اند.
     journey = PatientJourneyProfile(
         patient_access_profile_id=profile.id,
         disease_id=payload.disease_id,
@@ -182,7 +184,7 @@ async def patient_self_register(
         has_surgery=payload.has_surgery,
         age=payload.age,
         gender=payload.gender,
-        current_stage=target_stage,
+        current_stage=JourneyStageCode.ADMISSION,
         onboarding_completed_at=datetime.utcnow(),
     )
     db.add(journey)
@@ -206,7 +208,7 @@ async def patient_self_register(
         department_id=payload.department_id,
     ))
 
-        return PatientSelfAuthResponse(redirect_url="/welcome")
+    return PatientSelfAuthResponse(redirect_url="/welcome")
 
 
 @router.post("/patient-auth/login", response_model=PatientSelfAuthResponse)

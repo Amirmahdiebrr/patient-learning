@@ -1,0 +1,136 @@
+{# app/templates/patient_surgery_education.html #}
+{% extends "patient_app_base.html" %}
+{% block title %}آموزش‌های عمل جراحی | CuraLink{% endblock %}
+{% block patient_content %}
+    {% include "patient_back_button.html" %}
+    {% include "patient_surgery_subnav.html" %}
+
+    <div class="cl-card cl-surgery-hero-card" style="margin-top:18px;">
+        <span class="cl-surgery-hero-icon"><span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">auto_stories</span></span>
+        <h1>آموزش‌های عمل جراحی</h1>
+        <p class="cl-sub">
+            این آموزش‌ها اختیاری‌اند و هر زمان که بخواهید در دسترس شما هستند؛ جزو روند اجباری آموزشی نیستند.
+        </p>
+    </div>
+
+    {% if groups|length == 0 %}
+    <div class="cl-card">
+        <div class="cl-empty-state">
+            <span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">auto_stories</span>
+            <p>فعلاً محتوایی برای این بخش ثبت نشده است.</p>
+            <a href="/my-procedures" class="cl-btn cl-btn-sm" style="text-decoration:none; width:auto; margin-top:10px; display:inline-flex;">تعیین نوع عمل</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="cl-surgery-edu-groups">
+        {% for group in groups %}
+        <div class="cl-card cl-surgery-edu-group-card">
+            <div class="cl-surgery-edu-group-index">{{ loop.index }}</div>
+            <details class="cl-surgery-edu-group" {% if loop.first %}open{% endif %}>
+                <summary class="cl-journey-stage-summary">
+                    <span class="cl-journey-stage-title">{{ group.stage_name }}</span>
+                    {% set done = group.lessons | selectattr("is_completed") | list | length %}
+                    {% if group.lessons %}
+                    <span class="cl-admin-badge {% if done == group.lessons|length %}cl-journey-badge-completed{% else %}cl-admin-badge-draft{% endif %}" style="margin-inline-start:auto;">
+                        {{ done }} از {{ group.lessons|length }}
+                    </span>
+                    {% endif %}
+                    <span class="material-symbols-outlined cl-icon-sm cl-journey-vnode-chevron" aria-hidden="true">expand_more</span>
+                </summary>
+
+                {% if group.lessons %}
+                <div class="cl-lesson-list" style="margin-top:16px;">
+                    {% for item in group.lessons %}
+                    <a href="/lessons/{{ item.lesson.id }}" class="cl-lesson-item cl-journey-lesson-item" style="text-decoration:none; display:block;">
+                        <h3>
+                            {{ item.lesson.title }}
+                            {% if item.is_completed %}
+                            <span class="material-symbols-outlined cl-icon-sm cl-journey-lesson-check" aria-hidden="true">check_circle</span>
+                            {% endif %}
+                        </h3>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if group.quiz_questions %}
+                <div class="cl-journey-stage-quiz">
+                    <h4 class="cl-journey-stage-quiz-title">آزمون این بخش</h4>
+                    <div class="cl-quiz-block">
+                        {% for q in group.quiz_questions %}
+                        <div class="cl-quiz-question" data-question-id="{{ q.id }}">
+                            {% if q.question_image_url %}
+                            <img src="{{ q.question_image_url }}" class="cl-quiz-image">
+                            {% endif %}
+                            <p class="cl-quiz-text">{{ q.question_text }}</p>
+                            <div class="cl-quiz-options">
+                                {% for opt in q.options %}
+                                <button class="cl-quiz-option" data-option-id="{{ opt.id }}">
+                                    {% if opt.option_image_url %}
+                                    <img src="{{ opt.option_image_url }}" class="cl-quiz-option-image">
+                                    {% endif %}
+                                    <span>{{ opt.option_text }}</span>
+                                </button>
+                                {% endfor %}
+                            </div>
+                            <p class="cl-quiz-result" style="display:none;"></p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </details>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+<style>
+.cl-surgery-edu-groups{ display:flex; flex-direction:column; gap:16px; max-width:640px; margin:0 auto; }
+.cl-surgery-edu-group-card{ max-width:none; margin:0; display:flex; gap:14px; align-items:flex-start; }
+.cl-surgery-edu-group-index{ flex-shrink:0; width:30px; height:30px; border-radius:50%; background:var(--gradient-primary); color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; margin-top:2px; }
+.cl-surgery-edu-group{ flex:1; }
+.cl-surgery-edu-group summary{ list-style:none; }
+.cl-surgery-edu-group summary::-webkit-details-marker{ display:none; }
+</style>
+{% endblock %}
+
+{% block patient_scripts %}
+<script>
+(function () {
+    document.querySelectorAll(".cl-quiz-question").forEach(function (questionEl) {
+        const questionId = questionEl.dataset.questionId;
+        const resultEl = questionEl.querySelector(".cl-quiz-result");
+        const optionButtons = questionEl.querySelectorAll(".cl-quiz-option");
+
+        optionButtons.forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+                if (questionEl.dataset.answered === "true") return;
+
+                const res = await fetch(`/quiz-questions/${questionId}/attempt`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ option_id: btn.dataset.optionId }),
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                questionEl.dataset.answered = "true";
+                optionButtons.forEach(function (b) {
+                    b.disabled = true;
+                    if (b.dataset.optionId === data.correct_option_id) {
+                        b.classList.add("cl-quiz-option-correct");
+                    } else if (b === btn) {
+                        b.classList.add("cl-quiz-option-wrong");
+                    }
+                });
+
+                resultEl.style.display = "block";
+                resultEl.textContent = data.is_correct ? "✓ پاسخ درست بود." : "✗ پاسخ نادرست بود.";
+                resultEl.className = "cl-quiz-result " + (data.is_correct ? "cl-quiz-result-correct" : "cl-quiz-result-wrong");
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

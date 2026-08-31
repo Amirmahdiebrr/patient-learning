@@ -1,0 +1,58 @@
+{# app/templates/public_home_assistant_widget.html #}
+<div id="cl-assistant-widget-root">
+    <button type="button" id="cl-assistant-fab" aria-label="دستیار هوشمند CuraLink" aria-expanded="false">
+        <img src="/static/img/patient-welcome-nurse.png" alt="" aria-hidden="true">
+    </button>
+
+    <div id="cl-assistant-popup" class="cl-assistant-popup" role="dialog" aria-label="دستیار هوشمند CuraLink" aria-hidden="true">
+        <div class="cl-assistant-popup-header">
+            <span><span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">psychology</span> دستیار هوشمند CuraLink</span>
+            <button type="button" id="cl-assistant-popup-close" aria-label="بستن">
+                <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">close</span>
+            </button>
+        </div>
+        <div class="cl-assistant-popup-messages" id="cl-assistant-popup-messages">
+            <div class="cl-chat-empty-state">
+                <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+                برای گفتگو با دستیار هوشمند و دریافت پاسخ متناسب با مسیر درمان خودتان، ابتدا وارد حساب کاربری شوید.
+            </div>
+        </div>
+        <form class="cl-chat-input-row" id="cl-assistant-popup-form">
+            <label for="cl-assistant-popup-input" class="cl-sr-only">پیام شما</label>
+            <input type="text" id="cl-assistant-popup-input" class="cl-chat-input" placeholder="سوال خود را بنویسید..." autocomplete="off">
+            <button type="submit" class="cl-chat-send">ورود</button>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const root = document.getElementById("cl-assistant-widget-root");
+    if (root && root.parentElement !== document.body) {
+        document.body.appendChild(root);
+    }
+
+    const fab = document.getElementById("cl-assistant-fab");
+    const popup = document.getElementById("cl-assistant-popup");
+    const closeBtn = document.getElementById("cl-assistant-popup-close");
+    const form = document.getElementById("cl-assistant-popup-form");
+    if (!fab || !popup) return;
+
+    let isOpen = false;
+    function toggle(open) {
+        isOpen = open;
+        popup.classList.toggle("cl-assistant-popup-open", isOpen);
+        popup.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        fab.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        if (isOpen) document.getElementById("cl-assistant-popup-input").focus();
+    }
+
+    fab.addEventListener("click", function () { toggle(!isOpen); });
+    closeBtn.addEventListener("click", function () { toggle(false); fab.focus(); });
+
+    form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        window.location.href = "/login";
+    });
+})();
+</script>

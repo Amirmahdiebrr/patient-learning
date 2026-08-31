@@ -1,33 +1,57 @@
 {# app/templates/patient_procedures.html #}
-{% extends "base.html" %}
+{% extends "patient_app_base.html" %}
 {% block title %}نوع عمل من | CuraLink{% endblock %}
-{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
-{% block content %}
-<div class="cl-container" style="max-width:640px;">
+{% block patient_content %}
     {% include "patient_back_button.html" %}
+    {% include "patient_surgery_subnav.html" %}
 
-    <div class="cl-card">
+    <div class="cl-card cl-surgery-hero-card">
+        <span class="cl-surgery-hero-icon"><span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">medical_services</span></span>
         <h1>نوع عمل / اقدام من</h1>
         <p class="cl-sub">
             بخش {{ department.name }}. یک یا چند مورد از عمل‌ها/اقداماتی که برایتان انجام شده یا قرار است انجام شود را انتخاب کنید
-            تا آموزش‌های قبل و بعد از عمل، دقیقاً متناسب با همان‌ها نمایش داده شود. هر زمان می‌توانید این انتخاب را عوض کنید.
+            تا آموزش‌های «آموزش‌های عمل جراحی» دقیقاً متناسب با همان‌ها نمایش داده شود. هر زمان می‌توانید این انتخاب را عوض کنید.
         </p>
+    </div>
 
+    <div class="cl-card">
         {% if not has_department_type %}
-        <p class="cl-admin-empty">این بخش نوع مشخصی ندارد؛ آموزش عمومی همین بخش برای شما نمایش داده می‌شود.</p>
+        <div class="cl-empty-state">
+            <span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">info</span>
+            <p>این بخش نوع مشخصی ندارد؛ آموزش عمومی همین بخش برای شما نمایش داده می‌شود.</p>
+        </div>
         {% else %}
-        <div id="procedure-options" class="cl-admin-section-list">
-            <p class="cl-admin-empty">در حال بارگذاری...</p>
+        <div id="procedure-options" class="cl-procedure-option-list">
+            <div class="cl-skeleton-row"></div>
+            <div class="cl-skeleton-row"></div>
+            <div class="cl-skeleton-row"></div>
         </div>
 
-        <p id="procedure-message" style="font-size:13.5px; display:none;"></p>
-        <button id="save-procedures-btn" class="cl-btn" style="margin-top:10px;">ذخیره‌ی انتخاب</button>
+        <p id="procedure-message" class="cl-inline-message" role="status" style="display:none;"></p>
+        <button id="save-procedures-btn" class="cl-btn" style="margin-top:14px;">ذخیره‌ی انتخاب</button>
         {% endif %}
     </div>
-</div>
+
+<style>
+.cl-surgery-hero-card{ text-align:center; }
+.cl-surgery-hero-icon{ display:inline-flex; align-items:center; justify-content:center; width:60px; height:60px; border-radius:18px; background:var(--gradient-primary); color:#fff; box-shadow:var(--shadow-sm); margin-bottom:16px; }
+.cl-procedure-option-list{ display:flex; flex-direction:column; gap:10px; }
+.cl-procedure-option{ display:flex; align-items:center; gap:12px; padding:14px 16px; border:1.5px solid var(--line); border-radius:var(--radius-md); background:var(--color-surface); cursor:pointer; transition:border-color .18s ease, background .18s ease; }
+.cl-procedure-option:hover{ border-color:var(--color-accent); }
+.cl-procedure-option-selected{ border-color:var(--color-primary); background:var(--sky); }
+.cl-procedure-option input{ width:18px; height:18px; accent-color:var(--color-primary); flex-shrink:0; }
+.cl-procedure-option span{ font-size:14px; color:var(--navy); font-weight:600; }
+.cl-skeleton-row{ height:52px; border-radius:var(--radius-md); background:linear-gradient(90deg, var(--sky) 0%, #f4f9ff 50%, var(--sky) 100%); background-size:200% 100%; animation:cl-skeleton-shimmer 1.4s ease-in-out infinite; margin-bottom:10px; }
+@keyframes cl-skeleton-shimmer{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
+.cl-empty-state{ text-align:center; padding:24px 12px; color:var(--text-secondary); }
+.cl-empty-state .material-symbols-outlined{ color:var(--color-accent); margin-bottom:8px; }
+.cl-empty-state p{ margin:0; font-size:13.5px; line-height:1.9; }
+.cl-inline-message{ font-size:13.5px; margin-top:12px; }
+@media (prefers-reduced-motion: reduce){ .cl-skeleton-row{ animation:none; } }
+</style>
 {% endblock %}
 
-{% block scripts %}
+{% block patient_scripts %}
 <script>
 (function () {
     const optionsEl = document.getElementById("procedure-options");
@@ -41,32 +65,64 @@
         return div.innerHTML;
     }
 
+    function refreshSelectedStyles() {
+        optionsEl.querySelectorAll(".cl-procedure-option").forEach(function (label) {
+            const checkbox = label.querySelector("input");
+            label.classList.toggle("cl-procedure-option-selected", checkbox.checked);
+        });
+    }
+
     async function loadOptions() {
-        const res = await fetch("/patient-auth/procedures/options");
-        if (!res.ok) {
-            optionsEl.innerHTML = '<p class="cl-admin-empty">بارگذاری با خطا مواجه شد.</p>';
+        let options;
+        try {
+            const res = await fetch("/patient-auth/procedures/options");
+            if (!res.ok) throw new Error("failed");
+            options = await res.json();
+        } catch (err) {
+            optionsEl.innerHTML = `
+                <div class="cl-empty-state">
+                    <span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">wifi_off</span>
+                    <p>ارتباط با سرور برقرار نشد.</p>
+                </div>
+                <button type="button" id="procedure-retry-btn" class="cl-btn cl-btn-sm cl-btn-outline" style="margin:12px auto 0; display:block;">تلاش مجدد</button>
+            `;
+            document.getElementById("procedure-retry-btn").addEventListener("click", loadOptions);
+            saveBtn.style.display = "none";
             return;
         }
-        const options = await res.json();
 
         if (options.length === 0) {
-            optionsEl.innerHTML = '<p class="cl-admin-empty">هنوز عملی برای این بخش ثبت نشده است.</p>';
+            optionsEl.innerHTML = `
+                <div class="cl-empty-state">
+                    <span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">inventory_2</span>
+                    <p>هنوز عملی برای این بخش ثبت نشده است.</p>
+                </div>
+            `;
             saveBtn.style.display = "none";
             return;
         }
 
         optionsEl.innerHTML = options.map(function (o) {
             const checked = o.is_selected ? "checked" : "";
-            return `<label class="cl-radio-group" style="justify-content:flex-start; gap:10px; margin-bottom:10px;">
+            return `<label class="cl-procedure-option">
                 <input type="checkbox" value="${o.id}" data-procedure-checkbox ${checked}>
                 <span>${escapeHtml(o.name)}</span>
             </label>`;
         }).join("");
+
+        optionsEl.querySelectorAll("input[data-procedure-checkbox]").forEach(function (cb) {
+            cb.addEventListener("change", refreshSelectedStyles);
+        });
+        refreshSelectedStyles();
     }
 
     saveBtn.addEventListener("click", async function () {
         const selectedIds = Array.from(optionsEl.querySelectorAll("[data-procedure-checkbox]:checked"))
             .map(function (el) { return el.value; });
+
+        saveBtn.disabled = true;
+        const originalLabel = saveBtn.textContent;
+        saveBtn.textContent = "در حال ذخیره...";
 
         try {
             const res = await fetch("/patient-auth/procedures/selected", {
@@ -88,6 +144,9 @@
             messageEl.style.display = "block";
             messageEl.style.color = "var(--warn)";
             messageEl.textContent = "ارتباط با سرور برقرار نشد.";
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalLabel;
         }
     });
 

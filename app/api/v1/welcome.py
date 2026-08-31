@@ -12,8 +12,13 @@ PatientAccessProfile.hospital_welcome_acknowledged_at - deliberately
 NOT the same signal as onboarding_completed_at, since self-service
 patients set that at registration time itself.
 
-Department-specific welcome content lives on the /home hero instead
-(see patient_home.py / patient_home.html).
+The page shows the first WELCOME-stage lesson's content directly
+(title + media + body) instead of a plain link list, so the patient
+reads it here and confirms with one button; any additional
+WELCOME-stage lessons are listed below as secondary links.
+Department-specific welcome content still lives on the /home hero
+(see patient_home.py / patient_home.html), shown only after this
+one-time hospital-level page is confirmed.
 """
 
 from datetime import datetime
@@ -59,6 +64,9 @@ async def welcome_page(
         department_type_id=department.department_type_id,
     )
 
+    primary_lesson = lessons[0] if lessons else None
+    secondary_lessons = lessons[1:] if len(lessons) > 1 else []
+
     csrf_token = request.cookies.get(settings.CSRF_COOKIE_NAME)
 
     response = templates.TemplateResponse(
@@ -66,7 +74,8 @@ async def welcome_page(
         "welcome.html",
         {
             "request": request,
-            "lessons": lessons,
+            "primary_lesson": primary_lesson,
+            "secondary_lessons": secondary_lessons,
             "hospital": context.hospital,
             "department": department,
             "csrf_token": csrf_token,

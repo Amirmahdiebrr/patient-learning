@@ -1,4 +1,5 @@
 # app/api/v1/onboarding.py
+# app/api/v1/onboarding.py
 """
 app/api/v1/onboarding.py
 
@@ -124,14 +125,15 @@ async def onboarding_submit(
 
     db.commit()
 
-    # بیمارانی که قرار است عمل جراحی داشته باشند، اول وارد «آشنایی با
-    # عمل» می‌شوند (محتوای مخصوص همان عملی که بالا انتخاب کردند) و
-    # بعد از آن به «قبل از عمل» می‌روند - نه مستقیم.
-    target_stage = JourneyStageCode.PROCEDURE_INTRO if journey.has_surgery else JourneyStageCode.ADMISSION
-
+    # آموزش «آشنایی با عمل / قبل از عمل / بعد از عمل» دیگر بخشی از
+    # روند ترتیبی اصلی نیست؛ همه‌ی بیماران - چه عمل جراحی داشته باشند
+    # چه نه - بلافاصله وارد «پذیرش در بخش» می‌شوند. آموزش‌های مرتبط با
+    # عمل (در صورت وجود انتخاب عمل) در بخش جداگانه‌ی «آموزش‌های مرتبط
+    # با عمل جراحی» روی صفحه‌ی اصلی همیشه در دسترس‌اند - نگاه کنید به
+    # content_targeting_service.get_surgery_education_groups.
     try:
         transition_stage(
-            db, journey, target_stage,
+            db, journey, JourneyStageCode.ADMISSION,
             hospital_id=context.hospital_id,
             triggered_by="automatic",
         )

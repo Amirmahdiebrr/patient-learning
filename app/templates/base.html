@@ -16,6 +16,8 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
 
+    <a href="#cl-main-content" class="cl-skip-link">رفتن به محتوای اصلی</a>
+
     {% block header %}
     <header class="cl-navbar">
         <div class="cl-navbar-inner">
@@ -28,7 +30,7 @@
     </header>
     {% endblock %}
 
-    <main>
+    <main id="cl-main-content" tabindex="-1">
         {% block content %}{% endblock %}
     </main>
 

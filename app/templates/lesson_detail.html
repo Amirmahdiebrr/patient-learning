@@ -1,99 +1,214 @@
-{% extends "base.html" %}
+{# app/templates/lesson_detail.html #}
+{% extends "patient_app_base.html" %}
 {% block title %}{{ lesson.title }} | CuraLink{% endblock %}
-{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
-{% block content %}
-<div class="cl-container">
-    {% include "patient_back_button.html" %}
+{% block patient_content %}
+
+    <div class="cl-lesson-topbar">
+        <nav class="cl-lesson-breadcrumb">
+            <a href="/home">خانه</a>
+            <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">chevron_left</span>
+            <span>{{ section_title }}</span>
+            <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">chevron_left</span>
+            <strong>{{ lesson.title }}</strong>
+        </nav>
+        {% include "patient_back_button.html" %}
+    </div>
 
     <div class="cl-lesson-hero">
-        <span class="cl-lesson-hero-icon"><span class="material-symbols-outlined cl-icon-lg">menu_book</span></span>
-        <div class="cl-lesson-hero-text">
-            <span class="cl-lesson-hero-eyebrow">محتوای آموزشی</span>
-            <h1>{{ lesson.title }}</h1>
+        <div class="cl-lesson-hero-head">
+            <button id="fav-btn" class="cl-fav-star {% if is_favorite %}cl-fav-star-active{% endif %}" data-lesson-id="{{ lesson.id }}" title="افزودن به علاقه‌مندی‌ها" aria-label="افزودن به علاقه‌مندی‌ها" aria-pressed="{{ 'true' if is_favorite else 'false' }}">
+                <span class="material-symbols-outlined" aria-hidden="true">star</span>
+            </button>
+            <div class="cl-lesson-font-ctrl" role="group" aria-label="اندازه‌ی متن">
+                <button type="button" data-font-step="-1" aria-label="کوچک‌تر">آ</button>
+                <button type="button" data-font-step="0" aria-label="پیش‌فرض">آ</button>
+                <button type="button" data-font-step="1" aria-label="بزرگ‌تر">آ</button>
+            </div>
         </div>
-        <button id="fav-btn" class="cl-fav-btn {% if is_favorite %}cl-fav-btn-active{% endif %}" data-lesson-id="{{ lesson.id }}">
-            {% if is_favorite %}★ علاقه‌مندی{% else %}☆ افزودن به علاقه‌مندی‌ها{% endif %}
-        </button>
+        <h1>{{ lesson.title }}</h1>
     </div>
 
-    <div class="cl-card">
-        {% if lesson.media_assets %}
-        <div class="cl-media-list">
-            {% for media in lesson.media_assets %}
-            <div class="cl-media-item">
-                {% if media.type.value == "video" %}
-                    <video controls {% if media.thumbnail_url %}poster="{{ media.thumbnail_url }}"{% endif %} style="width:100%; border-radius:var(--radius-sm);">
-                        <source src="{{ media.file_url }}">
-                    </video>
-                {% elif media.type.value == "image" or media.type.value == "animation" %}
-                    <img src="{{ media.file_url }}" style="width:100%; border-radius:var(--radius-sm);">
-                {% elif media.type.value == "pdf" %}
-                    <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; width:auto;">
-    <span class="material-symbols-outlined cl-icon-sm">picture_as_pdf</span> مشاهده‌ی فایل PDF
-</a>
+    <div class="cl-lesson-layout">
+
+        <div class="cl-lesson-main">
+            <div class="cl-card">
+                {% if lesson.media_assets %}
+                <div class="cl-media-list">
+                    {% for media in lesson.media_assets %}
+                    <div class="cl-media-item" id="lesson-media-{{ loop.index0 }}">
+                        {% if media.type.value == "video" %}
+                            <video controls {% if media.thumbnail_url %}poster="{{ media.thumbnail_url }}"{% endif %} style="width:100%; border-radius:var(--radius-sm);">
+                                <source src="{{ media.file_url }}">
+                            </video>
+                        {% elif media.type.value == "image" or media.type.value == "animation" %}
+                            <img src="{{ media.file_url }}" style="width:100%; border-radius:var(--radius-sm);">
+                        {% elif media.type.value == "pdf" %}
+                            <a href="{{ media.file_url }}" target="_blank" class="cl-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; width:auto;">
+                                <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">picture_as_pdf</span> مشاهده‌ی فایل PDF
+                            </a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if lesson.body_richtext %}
+                <div class="cl-lesson-body" id="lesson-body-text">{{ lesson.body_richtext | safe }}</div>
                 {% endif %}
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
 
-        {% if lesson.body_richtext %}
-        <div class="cl-lesson-body">{{ lesson.body_richtext | safe }}</div>
-        {% endif %}
+            {% if lesson.quiz_questions %}
+            <div class="cl-card" id="lesson-quiz-block">
+                <div class="cl-quiz-section-head">
+                    <span class="cl-quiz-section-icon"><span class="material-symbols-outlined cl-icon-md" aria-hidden="true">quiz</span></span>
+                    <h2>آزمون کوتاه</h2>
+                </div>
+                <p class="cl-sub" id="quiz-required-note" style="{% if quiz_complete %}display:none;{% endif %} margin-top:-10px; margin-bottom:18px;">
+                    برای تکمیل این درس باید به همه‌ی سوالات زیر پاسخ دهید.
+                </p>
+                <div class="cl-quiz-block">
+                    {% for q in lesson.quiz_questions %}
+                    <div class="cl-quiz-question" data-question-id="{{ q.id }}" {% if q.id in answered_question_ids %}data-answered="true"{% endif %}>
+                        <p class="cl-quiz-text">{{ q.question_text }}</p>
+                        <div class="cl-quiz-options">
+                            {% for opt in q.options %}
+                            <button class="cl-quiz-option" data-option-id="{{ opt.id }}" {% if q.id in answered_question_ids %}disabled{% endif %}>{{ opt.option_text }}</button>
+                            {% endfor %}
+                        </div>
+                        <p class="cl-quiz-result" style="display:none;"></p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <button id="complete-btn" class="cl-btn cl-lesson-complete-btn"
+                    data-lesson-id="{{ lesson.id }}"
+                    {% if progress.status.value == "completed" %}
+                    disabled aria-disabled="true"
+                    {% elif not quiz_complete %}
+                    disabled aria-disabled="true" aria-describedby="quiz-required-note"
+                    {% endif %}>
+                {% if progress.status.value == "completed" %}
+                    ✓ تکمیل‌شده
+                {% elif not quiz_complete %}
+                    ابتدا به سوالات آزمون پاسخ دهید
+                {% else %}
+                    پایان درس، علامت‌گذاری به‌عنوان تکمیل‌شده
+                {% endif %}
+            </button>
+
+            <div class="cl-lesson-nav-row">
+                {% if previous_lesson %}
+                <a href="/lessons/{{ previous_lesson.id }}" class="cl-btn cl-btn-outline cl-lesson-nav-btn">
+                    <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">arrow_forward</span> درس قبلی
+                </a>
+                {% else %}<span></span>{% endif %}
+
+                {% if next_lesson %}
+                <a href="/lessons/{{ next_lesson.id }}" class="cl-btn cl-btn-outline cl-lesson-nav-btn">
+                    درس بعدی <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">arrow_back</span>
+                </a>
+                {% else %}<span></span>{% endif %}
+            </div>
+        </div>
+
+        <aside class="cl-lesson-toc">
+            <div class="cl-lesson-toc-card">
+                <h3 class="cl-lesson-toc-title">
+                    <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">list_alt</span>
+                    فهرست مطالب
+                </h3>
+                <ul class="cl-lesson-toc-list">
+                    {% if lesson.body_richtext %}
+                    <li><a href="#lesson-body-text" class="cl-lesson-toc-link cl-lesson-toc-link-active">مقدمه<span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">check_circle</span></a></li>
+                    {% endif %}
+                    {% for media in lesson.media_assets %}
+                    <li><a href="#lesson-media-{{ loop.index0 }}" class="cl-lesson-toc-link">
+                        {% if media.type.value == "video" %}فایل ویدیویی{% elif media.type.value == "pdf" %}فایل PDF{% else %}تصویر آموزشی{% endif %}
+                        <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">check_circle</span>
+                    </a></li>
+                    {% endfor %}
+                    {% if lesson.quiz_questions %}
+                    <li><a href="#lesson-quiz-block" class="cl-lesson-toc-link">سوالات امتحان<span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">{% if quiz_complete %}check_circle{% else %}radio_button_unchecked{% endif %}</span></a></li>
+                    {% endif %}
+                </ul>
+
+                <div class="cl-lesson-toc-ai-hint">
+                    <span class="material-symbols-outlined cl-icon-md" aria-hidden="true">psychology</span>
+                    <p>سوالی دارید؟<br>از دستیار هوشمند بپرسید.</p>
+                    <button type="button" onclick="document.getElementById('cl-assistant-fab')?.click();" class="cl-btn cl-btn-sm">شروع گفتگو</button>
+                </div>
+            </div>
+        </aside>
+
     </div>
 
-    {% if lesson.quiz_questions %}
-    <div class="cl-card">
-        <div class="cl-quiz-section-head">
-            <span class="cl-quiz-section-icon"><span class="material-symbols-outlined cl-icon-md">quiz</span></span>
-            <h2>آزمون کوتاه</h2>
-        </div>
-        {% for q in lesson.quiz_questions %}
-        <div class="cl-quiz-question" data-question-id="{{ q.id }}">
-            <p class="cl-quiz-text">{{ q.question_text }}</p>
-            <div class="cl-quiz-options">
-                {% for opt in q.options %}
-                <button class="cl-quiz-option" data-option-id="{{ opt.id }}">{{ opt.option_text }}</button>
-                {% endfor %}
-            </div>
-            <p class="cl-quiz-result" style="display:none;"></p>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+<style>
+.cl-lesson-topbar{ display:flex; align-items:center; justify-content:space-between; margin-top:6px; flex-wrap:wrap; gap:10px; }
+.cl-lesson-topbar .cl-back-btn{ margin:0; }
 
-    <button id="complete-btn" class="cl-btn" style="max-width:640px; margin:0 auto 24px; display:block;"
-            data-lesson-id="{{ lesson.id }}" {% if progress.status.value == "completed" %}disabled{% endif %}>
-        {% if progress.status.value == "completed" %}✓ تکمیل‌شده{% else %}پایان درس، علامت‌گذاری به‌عنوان تکمیل‌شده{% endif %}
-    </button>
+.cl-lesson-breadcrumb{ display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--text-secondary); max-width:100%; overflow:hidden; }
+.cl-lesson-breadcrumb a{ color:var(--text-secondary); text-decoration:none; }
+.cl-lesson-breadcrumb a:hover{ color:var(--color-primary); }
+.cl-lesson-breadcrumb strong{ color:var(--navy); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; display:inline-block; vertical-align:bottom; }
+.cl-lesson-breadcrumb .material-symbols-outlined{ font-size:15px; }
 
-    <div class="cl-chat-box" id="assistant-box">
-        <div class="cl-chat-header">
-            <div class="cl-chat-header-icon"><span class="material-symbols-outlined">psychology</span></div>
-            <div class="cl-chat-header-text">
-                <strong>دستیار بالینی CuraLink</strong>
-                <span>سوال درباره‌ی همین درس؟ اینجا بپرسید</span>
-            </div>
-        </div>
-        <div class="cl-chat-messages" id="assistant-messages">
-            <div class="cl-chat-empty-state" id="assistant-empty-state">
-                <span class="material-symbols-outlined">chat_bubble</span>
-                سوال خود را درباره‌ی همین درس در کادر پایین بنویسید.
-            </div>
-        </div>
-        <form class="cl-chat-input-row" id="assistant-form">
-            <input type="text" id="assistant-input" class="cl-chat-input" placeholder="مثلاً: منظور از این قسمت چیست؟" autocomplete="off">
-            <button type="submit" class="cl-chat-send" id="assistant-send-btn">ارسال</button>
-        </form>
-    </div>
+.cl-lesson-hero{ max-width:none; margin:14px 0 22px; padding:0 4px; }
+.cl-lesson-hero-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.cl-lesson-hero h1{ color:var(--navy); font-size:22px; font-weight:800; margin:10px 0 0; }
 
-</div>
+.cl-fav-star{ flex-shrink:0; border:none; background:transparent; color:var(--text-secondary); width:44px; height:44px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .18s ease, transform .18s ease; }
+.cl-fav-star:hover{ transform:scale(1.08); }
+.cl-fav-star .material-symbols-outlined{ font-size:24px; font-variation-settings:'FILL' 0,'wght' 500; }
+.cl-fav-star-active{ color:#F5A623; }
+.cl-fav-star-active .material-symbols-outlined{ font-variation-settings:'FILL' 1,'wght' 500; }
+
+.cl-lesson-font-ctrl{ display:flex; gap:4px; }
+.cl-lesson-font-ctrl button{ width:36px; height:36px; border-radius:8px; border:1px solid var(--line); background:var(--color-surface); color:var(--navy); font-weight:700; cursor:pointer; font-size:12px; }
+.cl-lesson-font-ctrl button[data-font-step="-1"]{ font-size:10px; }
+.cl-lesson-font-ctrl button[data-font-step="1"]{ font-size:14px; }
+.cl-lesson-font-ctrl button:hover{ border-color:var(--color-accent); }
+
+.cl-lesson-layout{ display:grid; grid-template-columns:1fr 280px; gap:24px; align-items:start; }
+.cl-lesson-main .cl-card{ max-width:none; margin:0 0 20px; }
+.cl-lesson-complete-btn{ max-width:none; margin:0 0 16px; display:block; }
+
+.cl-lesson-nav-row{ display:flex; justify-content:space-between; gap:12px; margin-bottom:24px; }
+.cl-lesson-nav-btn{ width:auto; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+
+.cl-lesson-toc{ position:sticky; top:16px; }
+.cl-lesson-toc-card{ background:var(--glass-bg-strong); border:1px solid rgba(255,255,255,.7); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:20px; }
+.cl-lesson-toc-title{ display:flex; align-items:center; gap:6px; color:var(--navy); font-size:13.5px; margin:0 0 14px; }
+.cl-lesson-toc-list{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:4px; }
+.cl-lesson-toc-link{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 10px; border-radius:10px; font-size:12.5px; color:var(--text); text-decoration:none; }
+.cl-lesson-toc-link:hover{ background:var(--sky); }
+.cl-lesson-toc-link .material-symbols-outlined{ font-size:16px; color:var(--color-success); }
+.cl-lesson-toc-link-active{ background:var(--sky); font-weight:700; color:var(--navy); }
+
+.cl-lesson-toc-ai-hint{ margin-top:18px; padding-top:16px; border-top:1px dashed var(--line); text-align:center; }
+.cl-lesson-toc-ai-hint .material-symbols-outlined{ color:var(--color-accent); font-size:26px; }
+.cl-lesson-toc-ai-hint p{ font-size:12px; color:var(--text-secondary); margin:6px 0 12px; line-height:1.8; }
+.cl-lesson-toc-ai-hint .cl-btn{ width:100%; }
+
+@media(max-width:860px){
+    .cl-lesson-layout{ grid-template-columns:1fr; }
+    .cl-lesson-toc{ position:static; order:-1; }
+}
+@media(max-width:480px){
+    .cl-lesson-breadcrumb span:not(.material-symbols-outlined):not(:last-child){ display:none; }
+    .cl-lesson-breadcrumb strong{ max-width:60vw; }
+}
+</style>
+
 {% endblock %}
 
-{% block scripts %}
+{% block patient_scripts %}
 <script>
 (function () {
     const LESSON_ID = "{{ lesson.id }}";
+    window.CURALINK_LESSON_ID = LESSON_ID;
+    const HAS_QUIZ = {{ 'true' if lesson.quiz_questions else 'false' }};
 
     const favBtn = document.getElementById("fav-btn");
     let isFavorite = {{ 'true' if is_favorite else 'false' }};
@@ -105,22 +220,56 @@
         if (res.ok) {
             const data = await res.json();
             isFavorite = data.is_favorite;
-            favBtn.textContent = isFavorite ? "★ علاقه‌مندی" : "☆ افزودن به علاقه‌مندی‌ها";
-            favBtn.classList.toggle("cl-fav-btn-active", isFavorite);
+            favBtn.classList.toggle("cl-fav-star-active", isFavorite);
+            favBtn.setAttribute("aria-pressed", isFavorite ? "true" : "false");
         }
     });
 
+    const bodyText = document.getElementById("lesson-body-text");
+    let fontStep = 0;
+    document.querySelectorAll(".cl-lesson-font-ctrl button").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            const step = parseInt(btn.dataset.fontStep, 10);
+            fontStep = step === 0 ? 0 : Math.max(-1, Math.min(2, fontStep + step));
+            if (bodyText) bodyText.style.fontSize = (15 + fontStep * 2) + "px";
+        });
+    });
+
     const completeBtn = document.getElementById("complete-btn");
+    const requiredNote = document.getElementById("quiz-required-note");
+
+    function checkAllQuizAnswered() {
+        return Array.from(document.querySelectorAll(".cl-quiz-question"))
+            .every(function (q) { return q.dataset.answered === "true"; });
+    }
+
+    function unlockCompleteButtonIfReady() {
+        if (completeBtn.disabled && checkAllQuizAnswered()) {
+            completeBtn.disabled = false;
+            completeBtn.removeAttribute("aria-disabled");
+            completeBtn.textContent = "پایان درس، علامت‌گذاری به‌عنوان تکمیل‌شده";
+            if (requiredNote) requiredNote.style.display = "none";
+        }
+    }
+
     completeBtn.addEventListener("click", async function () {
+        if (HAS_QUIZ && !checkAllQuizAnswered()) return;
+
         const lessonId = completeBtn.dataset.lessonId;
+        completeBtn.disabled = true;
+        completeBtn.textContent = "در حال ثبت...";
+
         const res = await fetch(`/lessons/${lessonId}/progress`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: "completed" }),
         });
+
         if (res.ok) {
-            completeBtn.textContent = "✓ تکمیل‌شده";
-            completeBtn.disabled = true;
+            window.location.href = "/home";
+        } else {
+            completeBtn.disabled = false;
+            completeBtn.textContent = "پایان درس، علامت‌گذاری به‌عنوان تکمیل‌شده";
         }
     });
 
@@ -154,73 +303,33 @@
                 resultEl.style.display = "block";
                 resultEl.textContent = data.is_correct ? "✓ پاسخ درست بود." : "✗ پاسخ نادرست بود.";
                 resultEl.className = "cl-quiz-result " + (data.is_correct ? "cl-quiz-result-correct" : "cl-quiz-result-wrong");
+
+                unlockCompleteButtonIfReady();
+
+                const toc = document.querySelector('.cl-lesson-toc-link[href="#lesson-quiz-block"] .material-symbols-outlined');
+                if (toc && checkAllQuizAnswered()) toc.textContent = "check_circle";
             });
         });
     });
 
-    const messagesEl = document.getElementById("assistant-messages");
-    const emptyStateEl = document.getElementById("assistant-empty-state");
-    const form = document.getElementById("assistant-form");
-    const input = document.getElementById("assistant-input");
-    const sendBtn = document.getElementById("assistant-send-btn");
-    let conversation = [];
+    const tocLinks = Array.from(document.querySelectorAll(".cl-lesson-toc-link"));
+    if (tocLinks.length && "IntersectionObserver" in window) {
+        const targets = tocLinks
+            .map(function (link) { return document.querySelector(link.getAttribute("href")); })
+            .filter(Boolean);
 
-    function addMessage(role, text) {
-        if (emptyStateEl) { emptyStateEl.remove(); }
-        const bubble = document.createElement("div");
-        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
-        bubble.textContent = text;
-        messagesEl.appendChild(bubble);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    function showTyping() {
-        const typing = document.createElement("div");
-        typing.className = "cl-chat-typing";
-        typing.id = "assistant-typing";
-        typing.innerHTML = "<span></span><span></span><span></span>";
-        messagesEl.appendChild(typing);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    function hideTyping() {
-        const typing = document.getElementById("assistant-typing");
-        if (typing) typing.remove();
-    }
-
-    form.addEventListener("submit", async function (e) {
-        e.preventDefault();
-        const question = input.value.trim();
-        if (!question) return;
-
-        addMessage("user", question);
-        conversation.push({ role: "user", content: question });
-        input.value = "";
-        sendBtn.disabled = true;
-        showTyping();
-
-        try {
-            const res = await fetch("/assistant/ask", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ question: question, history: conversation, lesson_id: LESSON_ID }),
+        const observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                const id = "#" + entry.target.id;
+                tocLinks.forEach(function (link) {
+                    link.classList.toggle("cl-lesson-toc-link-active", link.getAttribute("href") === id);
+                });
             });
-            const data = await res.json();
-            hideTyping();
+        }, { rootMargin: "-30% 0px -60% 0px" });
 
-            if (!res.ok) {
-                addMessage("ai", data.error || "خطایی رخ داد.");
-            } else {
-                addMessage("ai", data.answer);
-                conversation.push({ role: "assistant", content: data.answer });
-            }
-        } catch (err) {
-            hideTyping();
-            addMessage("ai", "ارتباط با سرور برقرار نشد.");
-        } finally {
-            sendBtn.disabled = false;
-        }
-    });
+        targets.forEach(function (t) { observer.observe(t); });
+    }
 })();
 </script>
 {% endblock %}

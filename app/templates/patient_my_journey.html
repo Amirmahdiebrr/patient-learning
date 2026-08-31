@@ -1,8 +1,7 @@
-{% extends "base.html" %}
+{# app/templates/patient_my_journey.html #}
+{% extends "patient_app_base.html" %}
 {% block title %}مسیر درمان من | CuraLink{% endblock %}
-{% block navbar_extra %}{% include "patient_nav.html" %}{% endblock %}
-{% block content %}
-<div class="cl-container">
+{% block patient_content %}
     {% include "patient_back_button.html" %}
 
     <div class="cl-card cl-journey-welcome">
@@ -21,25 +20,76 @@
         <p class="cl-sub" style="margin:10px 0 0;">{{ progress.completed_lessons }} از {{ progress.total_lessons }} درس تکمیل‌شده</p>
     </div>
 
+    {% set stage_icons = {
+        "welcome": "waving_hand",
+        "admission": "domain",
+        "procedure_intro": "medical_information",
+        "before_procedure": "checklist",
+        "after_procedure": "healing",
+        "daily_inpatient": "hotel",
+        "discharge": "exit_to_app",
+        "home_care": "home_health",
+    } %}
+
     <div class="cl-card">
-        <h2 class="cl-admin-h2">پیشرفت هر مرحله</h2>
+        <h2 class="cl-admin-h2">مسیر شما</h2>
         {% if progress.stages|length == 0 %}
-        <p class="cl-admin-empty">هنوز محتوایی برای مسیر شما ثبت نشده است.</p>
+        <div class="cl-journey-empty-state">
+            <span class="material-symbols-outlined" aria-hidden="true">explore_off</span>
+            <p>هنوز محتوایی برای مسیر شما ثبت نشده است.</p>
+        </div>
         {% else %}
-        <div class="cl-progress-stage-list">
+        <div class="cl-journey-vtimeline">
             {% for stage in progress.stages %}
-            <div class="cl-progress-stage-item">
-                <div class="cl-progress-stage-head">
-                    <span class="cl-progress-stage-name">
-                        {{ stage.stage_name }}
-                        {% if stage.is_current %}<span class="cl-admin-badge cl-admin-badge-live">مرحله‌ی فعلی</span>{% endif %}
-                        {% if stage.is_completed %}<span class="cl-admin-badge cl-journey-badge-completed">تکمیل‌شده</span>{% endif %}
+            <div class="cl-journey-vnode
+                {% if stage.is_completed %}cl-journey-vnode-completed{% elif stage.is_current %}cl-journey-vnode-current{% else %}cl-journey-vnode-future{% endif %}">
+
+                <div class="cl-journey-vnode-line">
+                    <span class="cl-journey-vnode-dot">
+                        {% if stage.is_completed %}
+                        <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">check</span>
+                        {% else %}
+                        <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">{{ stage_icons.get(stage.stage_code, "radio_button_unchecked") }}</span>
+                        {% endif %}
                     </span>
-                    <span class="cl-progress-stage-count">{{ stage.completed_lessons }} از {{ stage.total_lessons }}</span>
+                    {% if not loop.last %}<span class="cl-journey-vnode-connector"></span>{% endif %}
                 </div>
-                <div class="cl-progress-track">
-                    <div class="cl-progress-fill" style="width:{{ stage.percent }}%;"></div>
-                </div>
+
+                <details class="cl-journey-vnode-body" {% if stage.is_current %}open{% endif %}>
+                    <summary>
+                        <span class="cl-journey-vnode-title">{{ stage.stage_name }}</span>
+                        {% if stage.is_current %}
+                        <span class="cl-admin-badge cl-admin-badge-live">مرحله‌ی فعلی</span>
+                        {% elif stage.is_completed %}
+                        <span class="cl-admin-badge cl-journey-badge-completed">تکمیل‌شده</span>
+                        {% endif %}
+                        <span class="material-symbols-outlined cl-icon-sm cl-journey-vnode-chevron" aria-hidden="true">expand_more</span>
+                    </summary>
+
+                    {% if stage.total_lessons > 0 %}
+                    <div class="cl-journey-vnode-detail">
+                        <div class="cl-progress-track">
+                            <div class="cl-progress-fill" style="width:{{ stage.percent }}%;"></div>
+                        </div>
+                        <p class="cl-sub" style="margin:8px 0 12px;">✓ تکمیل‌شده: {{ stage.completed_lessons }} — باقی‌مانده: {{ stage.total_lessons - stage.completed_lessons }}</p>
+
+                        <div class="cl-lesson-list">
+                            {% for item in stage.lessons %}
+                            <a href="/lessons/{{ item.lesson.id }}" class="cl-lesson-item cl-journey-lesson-item" style="text-decoration:none; display:block;">
+                                <h3>
+                                    {{ item.lesson.title }}
+                                    {% if item.is_completed %}
+                                    <span class="material-symbols-outlined cl-icon-sm cl-journey-lesson-check" aria-hidden="true">check_circle</span>
+                                    {% endif %}
+                                </h3>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="cl-admin-empty" style="margin-top:10px;">محتوایی برای این مرحله ثبت نشده است.</p>
+                    {% endif %}
+                </details>
             </div>
             {% endfor %}
         </div>
@@ -54,7 +104,7 @@
         <div class="cl-quiz-history-list">
             {% for attempt in quiz_history %}
             <div class="cl-quiz-history-item {% if attempt.is_correct %}cl-quiz-history-item-correct{% else %}cl-quiz-history-item-wrong{% endif %}">
-                <span class="material-symbols-outlined cl-icon-md">
+                <span class="material-symbols-outlined cl-icon-md" aria-hidden="true">
                     {% if attempt.is_correct %}check_circle{% else %}cancel{% endif %}
                 </span>
                 <div class="cl-quiz-history-body">
@@ -72,5 +122,27 @@
         {% endif %}
     </div>
 
-</div>
+<style>
+.cl-journey-vtimeline{ display:flex; flex-direction:column; }
+.cl-journey-vnode{ display:flex; gap:16px; }
+.cl-journey-vnode-line{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:36px; }
+.cl-journey-vnode-dot{ width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--sky); color:var(--text-secondary); flex-shrink:0; border:2px solid var(--line); }
+.cl-journey-vnode-connector{ width:2px; flex:1; min-height:24px; background:var(--line); margin:4px 0; }
+.cl-journey-vnode-completed .cl-journey-vnode-dot{ background:var(--gradient-primary); color:#fff; border-color:transparent; }
+.cl-journey-vnode-completed .cl-journey-vnode-connector{ background:var(--color-primary); }
+.cl-journey-vnode-current .cl-journey-vnode-dot{ background:#fff; color:var(--color-primary); border-color:var(--color-primary); box-shadow:0 0 0 4px rgba(15,111,255,.14); }
+.cl-journey-vnode-future .cl-journey-vnode-dot{ color:var(--text-secondary); }
+.cl-journey-vnode-future .cl-journey-vnode-title{ color:#4A5A70; }
+.cl-journey-vnode-body{ flex:1; padding-bottom:20px; }
+.cl-journey-vnode-body summary{ list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; padding-top:6px; }
+.cl-journey-vnode-body summary::-webkit-details-marker{ display:none; }
+.cl-journey-vnode-title{ font-weight:800; color:var(--navy); font-size:14.5px; }
+.cl-journey-vnode-chevron{ margin-inline-start:auto; color:var(--text-secondary); transition:transform .18s ease; }
+.cl-journey-vnode-body[open] .cl-journey-vnode-chevron{ transform:rotate(180deg); }
+.cl-journey-vnode-detail{ margin-top:12px; padding-inline-start:2px; }
+.cl-journey-empty-state{ text-align:center; padding:28px 12px; color:var(--text-secondary); }
+.cl-journey-empty-state .material-symbols-outlined{ color:var(--color-accent); font-size:30px; margin-bottom:8px; display:block; }
+@media(max-width:600px){ .cl-journey-vnode-title{ font-size:13.5px; } }
+</style>
+
 {% endblock %}

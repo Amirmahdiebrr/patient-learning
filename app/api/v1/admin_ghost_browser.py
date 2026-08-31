@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import decode_admin_access_token
 from app.core.templates import templates
+from app.core.logging_config import get_logger
 from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import AdminUser, RoleCode, AdminRoleAssignment, PatientJourneyProfile
 from app.api.deps_admin import ScopeCheck
@@ -31,6 +32,8 @@ from app.schemas.ghost import (
 )
 from app.services import ghost_session_service
 from app.services.ghost_session_service import GhostSessionError
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin_ghost_browser"])
 
@@ -171,23 +174,48 @@ async def delete_ghost_session(
     try:
         ghost_session_service.delete_ghost_session(db, ghost_profile_id)
     except GhostSessionError as exc:
-        return JSONResponse({"detail": str(exc)}, status_code=404)
+        return JSONResponse({"detail": str(exc)}, status_code=422)
+    except Exception as exc:
+        logger.exception(f"[GhostBrowser] unexpected error deleting ghost session {ghost_profile_id}: {exc}")
+        return JSONResponse({"detail": "حذف نشست روح با خطای غیرمنتظره مواجه شد."}, status_code=500)
+
     return JSONResponse({"ok": True})
 
 
 @router.get("/ghost-sessions/exit")
-async def exit_ghost_session(
-    admin: AdminUser = Depends(require_super_admin()),
-):
+async def exit_ghost_session(request: Request, db: Session = Depends(get_db)):
     """
-    Deliberately a plain GET, not a fetch/AJAX call - this is what
-    lets it work as a simple <a href> link from inside the ghost-mode
-    banner injected into patient pages by GhostBannerMiddleware. GET
-    requests are exempt from the cookie-auth CSRF check
-    (see deps_admin.py::_SAFE_METHODS), so no admin CSRF token needs
-    to be threaded into a patient-facing page that has no admin
-    <meta> tag to read it from.
+    Deliberately a plain GET, not a fetch/AJAX call, and deliberately
+    NOT gated behind require_super_admin() - this is what lets it work
+    as a simple <a href> link from inside the ghost-mode banner
+    injected into patient pages by GhostBannerMiddleware. GET requests
+    are exempt from the cookie-auth CSRF check anyway.
+
+    If admin auth were required and the admin's session had expired
+    (or the token cookie was otherwise missing) while browsing in
+    ghost mode, this endpoint would previously return a raw 401 JSON
+    error instead of a page - trapping the admin inside ghost mode
+    with literally no UI path back out (the ghost banner's only other
+    action is a link to /admin/ghost-browser, which itself redirects
+    to /admin/login and loses the "exit ghost mode" step). Clearing
+    the ghost/patient cookies here is harmless regardless of admin
+    auth state, so it always happens; only the redirect target depends
+    on whether a still-valid admin session exists.
     """
     response = RedirectResponse(url="/admin/ghost-browser", status_code=303)
     ghost_session_service.exit_ghost_session_cookies(response)
+
+    token = request.cookies.get(settings.ADMIN_TOKEN_COOKIE_NAME)
+    admin_id = decode_admin_access_token(token) if token else None
+    if not admin_id:
+        response = RedirectResponse(url="/admin/login", status_code=303)
+        ghost_session_service.exit_ghost_session_cookies(response)
+        return response
+
+    admin = db.query(AdminUser).filter(AdminUser.id == admin_id, AdminUser.is_active.is_(True)).first()
+    if not admin or not _is_super_admin(db, admin):
+        response = RedirectResponse(url="/admin/login", status_code=303)
+        ghost_session_service.exit_ghost_session_cookies(response)
+        return response
+
     return response

@@ -1,0 +1,31 @@
+{# app/templates/patient_app_base.html #}
+{% extends "base.html" %}
+{% block body_class %}cl-patient-app{% endblock %}
+
+{% block header %}
+<div class="cl-mobile-topbar">
+    <a href="/home" class="cl-mobile-topbar-logo">
+        <img src="/static/img/logo.png" alt="">
+        <span>CuraLink</span>
+    </a>
+    <button type="button" class="cl-mobile-menu-btn" id="cl-mobile-menu-btn" aria-label="باز کردن منو" aria-expanded="false">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="cl-app-shell">
+    <div class="cl-sidebar-backdrop" id="cl-sidebar-backdrop"></div>
+    {% include "patient_nav.html" %}
+    <div class="cl-app-main">
+        {% block patient_content %}{% endblock %}
+    </div>
+</div>
+{% include "patient_assistant_widget.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/patient_quiz.js" defer></script>
+{% block patient_scripts %}{% endblock %}
+{% endblock %}
