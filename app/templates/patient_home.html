@@ -40,8 +40,9 @@
     {% else %}
 
     <div class="cl-home-header-hero">
+        <span class="cl-home-header-hero-icon"><span class="material-symbols-outlined" aria-hidden="true">waving_hand</span></span>
         <div class="cl-home-header-hero-text">
-            <h1>{% if patient_first_name %}سلام {{ patient_first_name }} جان 👋{% else %}سلام، خوش آمدید 👋{% endif %}</h1>
+            <h1>{% if patient_first_name %}سلام {{ patient_first_name }} جان{% else %}سلام، خوش آمدید{% endif %}</h1>
             <p>به بخش {{ department.name }} {{ hospital.name }} خوش آمدید؛ همراه شما در مسیر درمان هستیم.</p>
         </div>
     </div>

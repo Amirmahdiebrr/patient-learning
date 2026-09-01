@@ -67,6 +67,20 @@
       <p id="profile-message" class="cl-inline-message" role="status" style="display:none;"></p>
       <button type="submit" class="cl-btn">ذخیره تغییرات</button>
     </form>
+
+    <hr style="border:none; border-top:1px solid var(--line); margin:28px 0 20px;">
+    <div class="cl-danger-zone">
+        <h3 class="cl-danger-zone-title">
+            <span class="material-symbols-outlined cl-icon-sm" aria-hidden="true">warning</span>
+            حذف حساب کاربری
+        </h3>
+        <p class="cl-sub" style="margin:6px 0 14px;">
+            با حذف حساب، تمام اطلاعات شخصی، سوابق آموزشی و نتیجه‌ی آزمون‌های شما برای همیشه پاک می‌شود. این عمل غیرقابل بازگشت است.
+        </p>
+        <button type="button" id="delete-account-btn" class="cl-btn cl-btn-outline" style="border-color:var(--color-danger); color:var(--color-danger);">
+            حذف دائمی حساب کاربری
+        </button>
+    </div>
   </div>
 
 <style>
@@ -83,6 +97,8 @@
 .cl-profile-reveal-btn:hover{ border-color:var(--color-accent); }
 .cl-profile-reveal-btn[aria-pressed="true"]{ background:var(--sky); border-color:var(--color-primary); }
 .cl-inline-message{ font-size:13.5px; }
+.cl-danger-zone{ background:var(--color-danger-bg); border:1px solid rgba(239,68,68,.25); border-radius:var(--radius-md); padding:18px; }
+.cl-danger-zone-title{ display:flex; align-items:center; gap:6px; color:#C2374B; font-size:14px; margin:0; }
 </style>
 {% endblock %}
 
@@ -209,6 +225,33 @@
     });
 
     loadProfile();
+
+    var deleteBtn = document.getElementById("delete-account-btn");
+    if (deleteBtn) {
+        deleteBtn.addEventListener("click", async function () {
+            var firstConfirm = window.confirm("آیا مطمئن هستید؟ تمام اطلاعات شما برای همیشه حذف خواهد شد.");
+            if (!firstConfirm) return;
+            var secondConfirm = window.confirm("این عمل غیرقابل بازگشت است. برای تایید نهایی دوباره تایید کنید.");
+            if (!secondConfirm) return;
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = "در حال حذف...";
+            try {
+                var res = await fetch("/patient-auth/account", { method: "DELETE" });
+                if (res.ok) {
+                    window.location.href = "/login";
+                } else {
+                    var data = await res.json().catch(function () { return null; });
+                    alert((data && data.detail) || "حذف حساب با خطا مواجه شد.");
+                    deleteBtn.disabled = false;
+                    deleteBtn.textContent = "حذف دائمی حساب کاربری";
+                }
+            } catch (err) {
+                alert("ارتباط با سرور برقرار نشد.");
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = "حذف دائمی حساب کاربری";
+            }
+        });
+    }
 })();
 </script>
 {% endblock %}

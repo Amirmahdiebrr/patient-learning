@@ -52,14 +52,19 @@
     var collapseBtn = document.getElementById("cl-sidebar-collapse-btn");
     if (!sidebar) return;
 
-    // Mobile off-canvas open/close
+    // Mobile off-canvas open/close - also toggles a body-level class
+    // so the fixed-position assistant widget (which lives outside
+    // the sidebar's own stacking context) can hide itself while the
+    // sidebar overlays the screen, instead of being covered by it.
     function closeMobileSidebar() {
         sidebar.classList.remove("cl-sidebar-open");
+        document.body.classList.remove("cl-sidebar-is-open");
         if (backdrop) backdrop.classList.remove("cl-sidebar-backdrop-open");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
     }
     function openMobileSidebar() {
         sidebar.classList.add("cl-sidebar-open");
+        document.body.classList.add("cl-sidebar-is-open");
         if (backdrop) backdrop.classList.add("cl-sidebar-backdrop-open");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
     }

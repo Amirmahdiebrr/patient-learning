@@ -3,14 +3,21 @@
 """
 app/api/v1/patient_profile.py
 
-Patient-facing profile: view/edit personal info, upload avatar.
-Scoped entirely by the AccessContext cookie - no admin auth needed.
+Patient-facing profile: view/edit personal info, upload avatar,
+permanently delete own account. Scoped entirely by the AccessContext
+cookie - no admin auth needed.
+
+DELETE /patient-auth/account is patient-initiated, immediate, and
+irreversible - see patient_account_service.delete_patient_account for
+the full cascade. On success, all patient-facing cookies are cleared
+exactly like logout, so the browser has no lingering session for a
+now-nonexistent profile.
 """
 
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -21,6 +28,7 @@ from app.infrastructure.db.session import get_db
 from app.infrastructure.db.models import PatientRegistration, PatientJourneyProfile
 from app.api.deps import AccessContext, get_access_context, get_active_journey
 from app.schemas.patient import PatientProfileResponse, PatientProfileUpdateRequest
+from app.services.patient_account_service import delete_patient_account, PatientAccountDeletionError
 
 router = APIRouter(tags=["patient_profile"])
 
@@ -159,3 +167,21 @@ async def upload_avatar(
     db.commit()
 
     return JSONResponse({"avatar_url": registration.avatar_url})
+
+
+@router.delete("/patient-auth/account")
+async def delete_own_account(
+    response: Response,
+    context: AccessContext = Depends(get_access_context),
+    db: Session = Depends(get_db),
+):
+    try:
+        delete_patient_account(db, context.patient_profile.id)
+    except PatientAccountDeletionError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+
+    response.delete_cookie(settings.PATIENT_PROFILE_COOKIE_NAME)
+    response.delete_cookie(settings.ACCESS_COOKIE_NAME)
+    response.delete_cookie(settings.CSRF_COOKIE_NAME)
+
+    return JSONResponse({"ok": True})

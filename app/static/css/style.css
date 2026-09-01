@@ -2904,3 +2904,72 @@ input, textarea, select, button{ font-family:inherit; }
     .cl-sidebar.cl-sidebar-collapsed .cl-sidebar-logo{ justify-content:flex-start; }
     .cl-sidebar-collapse-btn{ display:none; }
 }
+/* ============================================================
+   Quick-access icon fix — override with higher specificity
+   ============================================================ */
+.cl-quick-access-row .cl-quick-access-icon{
+    width:64px !important;
+    height:64px !important;
+    box-shadow:var(--shadow-sm);
+}
+.cl-quick-access-row .cl-quick-access-icon .material-symbols-outlined{
+    font-size:32px !important;
+}
+.cl-quick-access-row .cl-quick-access-item span:last-child{
+    font-size:13.5px !important;
+    font-weight:700;
+}
+
+/* Assistant widget must never collide with an open sidebar */
+body.cl-sidebar-is-open #cl-assistant-fab,
+body.cl-sidebar-is-open .cl-assistant-popup{
+    display:none !important;
+}
+/* ============================================================
+   FINAL FIX — quick-access icon size (high-specificity override)
+   ============================================================ */
+.cl-app-main .cl-quick-access-row a.cl-quick-access-item span.cl-quick-access-icon{
+    width:68px !important;
+    height:68px !important;
+    min-width:68px !important;
+    min-height:68px !important;
+    box-shadow:var(--shadow-sm) !important;
+}
+.cl-app-main .cl-quick-access-row a.cl-quick-access-item span.cl-quick-access-icon .material-symbols-outlined{
+    font-size:34px !important;
+    font-variation-settings:'FILL' 0,'wght' 500 !important;
+}
+.cl-app-main .cl-quick-access-row a.cl-quick-access-item span:last-child{
+    font-size:14px !important;
+    font-weight:700 !important;
+}
+
+/* ============================================================
+   FINAL FIX — assistant widget must never sit under the sidebar.
+   The sidebar is permanently docked on the physical RIGHT (RTL
+   inset-inline-start), in BOTH its collapsed and expanded desktop
+   states, and slides in from the right on mobile too - so the
+   widget is pinned to the physical LEFT edge unconditionally,
+   using physical `left`/`right` instead of logical properties, to
+   guarantee it can never overlap the sidebar regardless of RTL
+   logical-property direction quirks.
+   ============================================================ */
+#cl-assistant-fab{
+    inset-inline-start:auto !important;
+    inset-inline-end:auto !important;
+    left:24px !important;
+    right:auto !important;
+    bottom:36px !important;
+}
+.cl-assistant-popup{
+    inset-inline-start:auto !important;
+    inset-inline-end:auto !important;
+    left:24px !important;
+    right:auto !important;
+    bottom:172px !important;
+}
+
+@media(max-width:480px){
+    #cl-assistant-fab{ left:14px !important; bottom:20px !important; }
+    .cl-assistant-popup{ left:14px !important; bottom:118px !important; }
+}

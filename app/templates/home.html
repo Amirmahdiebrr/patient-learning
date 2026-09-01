@@ -24,13 +24,13 @@
                     <span class="cl-home-auth-col-title">ثبت‌نام</span>
                     <a href="/register"><span class="material-symbols-outlined cl-icon-sm">person_add</span> ثبت‌نام مددجو</a>
                     <a href="/admin/register-hospital"><span class="material-symbols-outlined cl-icon-sm">local_hospital</span> ثبت‌نام بیمارستان</a>
-                    <a href="/nurse/register"><span class="material-symbols-outlined cl-icon-sm">stethoscope</span> ثبت‌نام پرستار</a>
+                    <a href="/nurse/register"><span class="material-symbols-outlined cl-icon-sm">stethoscope</span> ثبت‌نام کادر پرستاری</a>
                 </div>
                 <div class="cl-home-auth-col">
                     <span class="cl-home-auth-col-title">ورود</span>
                     <a href="/login"><span class="material-symbols-outlined cl-icon-sm">login</span> ورود مددجو</a>
                     <a href="/admin/login"><span class="material-symbols-outlined cl-icon-sm">local_hospital</span> ورود بیمارستان</a>
-                    <a href="/nurse/login"><span class="material-symbols-outlined cl-icon-sm">stethoscope</span> ورود پرستار</a>
+                    <a href="/nurse/login"><span class="material-symbols-outlined cl-icon-sm">stethoscope</span> ورود کادر پرستاری</a>
                     <a href="/admin/login"><span class="material-symbols-outlined cl-icon-sm">admin_panel_settings</span> ورود پنل مدیریت</a>
                 </div>
             </div>
@@ -166,22 +166,6 @@
     </div>
 </section>
 
-<section class="cl-home-section cl-home-section-alt">
-    <h2 class="cl-home-section-title">دستیار هوشمند CuraLink</h2>
-    <p class="cl-home-section-sub">سوال خود را بپرسید، دستیار هوشمند بر اساس محتوای آموزشی پاسخ می‌دهد</p>
-
-    <div class="cl-home-chat-box">
-        <div class="cl-home-chat-header">
-            <span>دستیار هوشمند CuraLink</span>
-        </div>
-        <div class="cl-home-chat-body" id="home-chat-messages"></div>
-        <form class="cl-home-chat-input-row" id="home-chat-form">
-            <input type="text" id="home-chat-input" placeholder="سوال خود را بنویسید..." autocomplete="off">
-            <button type="submit">ارسال</button>
-        </form>
-    </div>
-</section>
-
 <footer class="cl-home-footer">
     <div class="cl-home-footer-top">
         <div class="cl-home-footer-brand">
@@ -235,6 +219,8 @@
         <p>کلیه حقوق این وب‌سایت متعلق به شرکت درمان پیوند ایرانیان (برند ثبت‌شده کیورالینک — شماره ثبت 24497) است.</p>
     </div>
 </footer>
+
+{% include "public_home_assistant_widget.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -252,29 +238,6 @@
         if (!menu.contains(e.target) && e.target !== btn) {
             menu.classList.remove("cl-home-auth-menu-open");
         }
-    });
-})();
-
-(function () {
-    const form = document.getElementById("home-chat-form");
-    const input = document.getElementById("home-chat-input");
-    const messagesEl = document.getElementById("home-chat-messages");
-
-    function addMessage(role, text) {
-        const bubble = document.createElement("div");
-        bubble.className = "cl-chat-msg " + (role === "user" ? "cl-chat-msg-user" : "cl-chat-msg-ai");
-        bubble.textContent = text;
-        messagesEl.appendChild(bubble);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    form.addEventListener("submit", function (e) {
-        e.preventDefault();
-        const question = input.value.trim();
-        if (!question) return;
-        addMessage("user", question);
-        input.value = "";
-        window.location.href = "/login";
     });
 })();
 </script>
