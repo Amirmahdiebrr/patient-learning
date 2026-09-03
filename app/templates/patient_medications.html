@@ -1,0 +1,37 @@
+{# app/templates/patient_medications.html #}
+{% extends "patient_app_base.html" %}
+{% block title %}آموزش دارویی | CuraLink{% endblock %}
+{% block patient_content %}
+    {% include "patient_back_button.html" %}
+
+    <div class="cl-card cl-surgery-hero-card">
+        <span class="cl-surgery-hero-icon"><span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">medication</span></span>
+        <h1>آموزش دارویی</h1>
+        <p class="cl-sub">نام داروی مورد نظر خود را جستجو کنید تا اطلاعات آموزشی آن را ببینید.</p>
+    </div>
+
+    <div class="cl-card">
+        <form method="get" action="/my-medications" class="cl-library-filters">
+            <input type="text" name="q" value="{{ q }}" placeholder="نام دارو را جستجو کنید...">
+            <button type="submit" class="cl-btn cl-btn-sm">جستجو</button>
+        </form>
+
+        {% if medications|length == 0 %}
+        <div class="cl-empty-state">
+            <span class="material-symbols-outlined cl-icon-lg" aria-hidden="true">medication</span>
+            <p>{% if q %}دارویی با این نام پیدا نشد.{% else %}فعلاً دارویی برای این بخش ثبت نشده است.{% endif %}</p>
+        </div>
+        {% else %}
+        <div class="cl-lesson-list" style="margin-top:18px;">
+            {% for m in medications %}
+            <a href="/medications/{{ m.id }}" class="cl-lesson-item" style="text-decoration:none; display:flex; align-items:center; gap:14px;">
+                {% if m.image_url %}
+                <img src="{{ m.image_url }}" alt="" style="width:44px; height:44px; border-radius:10px; object-fit:cover; flex-shrink:0;">
+                {% endif %}
+                <h3 style="margin:0;">{{ m.name }}</h3>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+{% endblock %}

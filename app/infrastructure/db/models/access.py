@@ -43,6 +43,7 @@ class StandardDepartmentType(Base):
     departments = relationship("Department", back_populates="department_type")
     education_sections = relationship("EducationSection", back_populates="department_type")
     procedures = relationship("Procedure", back_populates="department_type")
+    medications = relationship("Medication", back_populates="department_type")
 
 
 class Hospital(Base):

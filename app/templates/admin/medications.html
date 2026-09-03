@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}داروها | CuraLink{% endblock %}
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<div class="cl-container cl-admin-container">
+    {% include "admin/_nav.html" %}
+
+    <div class="cl-card cl-admin-card" style="margin-top:24px;">
+        <h1>آموزش دارویی</h1>
+        <p class="cl-sub">فهرست داروهای هر نوع بخش را مدیریت کن. اگر «عمومی» را انتخاب کنی، دارو برای همه‌ی بخش‌ها نمایش داده می‌شود.</p>
+
+        <div class="cl-field">
+            <label>نوع بخش</label>
+            <select id="med-department-type-select"><option value="general">— عمومی (همه‌ی بخش‌ها) —</option></select>
+        </div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
+        <h2 class="cl-admin-h2">افزودن داروی جدید</h2>
+        <div class="cl-admin-inline-form-col">
+            <input type="text" id="med-new-name" placeholder="نام دارو">
+            <textarea id="med-new-body" rows="6" placeholder="متن آموزشی دارو..."></textarea>
+            <div class="cl-admin-inline-form">
+                <input type="file" id="med-new-image" accept="image/*">
+                <button id="med-create-btn" class="cl-btn cl-btn-sm">+ افزودن دارو</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cl-card cl-admin-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h2 class="cl-admin-h2" style="margin:0;">فهرست داروها</h2>
+            <label class="cl-admin-checkbox-label">
+                <input type="checkbox" id="med-include-inactive"> نمایش غیرفعال‌ها
+            </label>
+        </div>
+        <div id="med-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function api(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        options.headers = Object.assign(
+            options.isFormData ? {} : { "Content-Type": "application/json" },
+            { "X-CSRF-Token": CSRF_TOKEN },
+            options.headers || {}
+        );
+        const res = await fetch(path, options);
+        if (res.status === 401) { window.location.href = "/admin/login"; throw new Error("unauthorized"); }
+        if (res.status === 204) return null;
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok) throw new Error((data && data.detail) || "خطای ناشناخته");
+        return data;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+    }
+
+    const MACRO_LABELS = {
+        surgical: "جراحی", medical: "داخلی / طبی", critical_care: "ویژه (Critical Care)",
+        obstetrics_gynecology: "زنان و زایمان", pediatrics: "اطفال", outpatient_procedures: "سرپایی تشخیصی/درمانی",
+    };
+
+    const deptSelect = document.getElementById("med-department-type-select");
+    const includeInactiveCheckbox = document.getElementById("med-include-inactive");
+    const listEl = document.getElementById("med-list");
+
+    async function loadDepartmentTypes() {
+        const types = await api("/admin/department-types");
+        const grouped = {};
+        types.forEach(function (t) {
+            if (!grouped[t.macro_category]) grouped[t.macro_category] = [];
+            grouped[t.macro_category].push(t);
+        });
+        let html = '<option value="general">— عمومی (همه‌ی بخش‌ها) —</option>';
+        Object.keys(grouped).forEach(function (macro) {
+            html += `<optgroup label="${escapeHtml(MACRO_LABELS[macro] || macro)}">`;
+            grouped[macro].forEach(function (t) { html += `<option value="${t.id}">${escapeHtml(t.name)}</option>`; });
+            html += "</optgroup>";
+        });
+        deptSelect.innerHTML = html;
+    }
+
+    function currentDeptParam() {
+        return deptSelect.value || "general";
+    }
+
+    async function loadMedications() {
+        listEl.innerHTML = '<p class="cl-admin-empty">در حال بارگذاری...</p>';
+        let url = `/admin/medications?department_type_id=${currentDeptParam()}`;
+        if (includeInactiveCheckbox.checked) url += `&include_inactive=true`;
+        try {
+            const medications = await api(url);
+            listEl.innerHTML = medications.length === 0
+                ? '<p class="cl-admin-empty">دارویی برای این ترکیب ثبت نشده.</p>'
+                : medications.map(renderMedicationRow).join("");
+            medications.forEach(function (m) { wireMedicationRow(m); });
+        } catch (err) {
+            listEl.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    function renderMedicationRow(m) {
+        const statusBadge = m.is_active
+            ? `<button type="button" class="cl-admin-badge cl-admin-badge-live cl-admin-badge-toggle" data-action="toggle-active" data-id="${m.id}" data-active="true">فعال</button>`
+            : `<button type="button" class="cl-admin-badge cl-admin-badge-draft cl-admin-badge-toggle" data-action="toggle-active" data-id="${m.id}" data-active="false">غیرفعال</button>`;
+        return `<div class="cl-admin-lesson-row" data-med-id="${m.id}">
+            <div class="cl-admin-lesson-head">
+                <strong>${escapeHtml(m.name)}</strong>
+                ${statusBadge}
+                <button class="cl-btn cl-btn-sm cl-btn-outline" data-action="edit" data-id="${m.id}">ویرایش</button>
+                <button class="cl-admin-icon-btn cl-admin-icon-btn-danger" data-action="delete" data-id="${m.id}" title="حذف">🗑</button>
+            </div>
+        </div>`;
+    }
+
+    function wireMedicationRow(m) {
+        const row = listEl.querySelector(`[data-med-id="${m.id}"]`);
+
+        row.querySelector('[data-action="toggle-active"]').addEventListener("click", async function () {
+            const isActive = this.dataset.active === "true";
+            try {
+                await api(`/admin/medications/${m.id}/${isActive ? "deactivate" : "reactivate"}`, { method: "POST" });
+                AdminToast.success("وضعیت تغییر کرد.");
+                await loadMedications();
+            } catch (err) { AdminToast.error(err.message); }
+        });
+
+        row.querySelector('[data-action="delete"]').addEventListener("click", async function () {
+            const confirmed = await AdminModal.confirm("این دارو حذف شود؟");
+            if (!confirmed) return;
+            try {
+                await api(`/admin/medications/${m.id}`, { method: "DELETE" });
+                AdminToast.success("دارو حذف شد.");
+                await loadMedications();
+            } catch (err) { AdminToast.error(err.message); }
+        });
+
+        row.querySelector('[data-action="edit"]').addEventListener("click", async function () {
+            const result = await AdminModal.form("ویرایش دارو", [
+                { name: "name", label: "نام دارو", value: m.name },
+                { name: "body_richtext", label: "متن آموزشی", value: m.body_richtext || "", type: "textarea" },
+            ]);
+            if (!result || !result.name) return;
+            try {
+                await api(`/admin/medications/${m.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        name: result.name, body_richtext: result.body_richtext || null,
+                        image_url: m.image_url, is_active: m.is_active, display_order: m.display_order,
+                    }),
+                });
+                AdminToast.success("دارو ویرایش شد.");
+                await loadMedications();
+            } catch (err) { AdminToast.error(err.message); }
+        });
+    }
+
+    async function uploadImageIfPresent(inputEl) {
+        if (!inputEl.files[0]) return null;
+        const formData = new FormData();
+        formData.append("media_type", "image");
+        formData.append("file", inputEl.files[0]);
+        const result = await api("/admin/media-upload", { method: "POST", body: formData, isFormData: true });
+        return result.url;
+    }
+
+    document.getElementById("med-create-btn").addEventListener("click", async function () {
+        const name = document.getElementById("med-new-name").value.trim();
+        const body = document.getElementById("med-new-body").value.trim();
+        const imageInput = document.getElementById("med-new-image");
+        if (!name) { AdminToast.error("نام دارو را وارد کنید."); return; }
+
+        try {
+            const imageUrl = await uploadImageIfPresent(imageInput);
+            const deptParam = currentDeptParam();
+            await api("/admin/medications", {
+                method: "POST",
+                body: JSON.stringify({
+                    department_type_id: deptParam === "general" ? null : deptParam,
+                    name: name, body_richtext: body || null, image_url: imageUrl, display_order: 0,
+                }),
+            });
+            document.getElementById("med-new-name").value = "";
+            document.getElementById("med-new-body").value = "";
+            imageInput.value = "";
+            AdminToast.success("دارو اضافه شد.");
+            await loadMedications();
+        } catch (err) { AdminToast.error(err.message); }
+    });
+
+    deptSelect.addEventListener("change", loadMedications);
+    includeInactiveCheckbox.addEventListener("change", loadMedications);
+
+    (async function init() {
+        await loadDepartmentTypes();
+        await loadMedications();
+    })();
+})();
+</script>
+{% endblock %}

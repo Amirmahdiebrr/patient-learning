@@ -12,6 +12,7 @@ from app.services.content_admin import (
     procedure_service,
     procedure_classifier_service,
     procedure_bulk_import_service,
+    medication_service,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "procedure_service",
     "procedure_classifier_service",
     "procedure_bulk_import_service",
+    "medication_service",
 ]

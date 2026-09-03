@@ -92,6 +92,11 @@ async def admin_panel_page(request: Request, db: Session = Depends(get_db)):
     return _render_admin_page(request, db, "admin/panel.html", "content", require_full_admin=True)
 
 
+@router.get("/medications")
+async def admin_medications_page(request: Request, db: Session = Depends(get_db)):
+    return _render_admin_page(request, db, "admin/medications.html", "medications", require_full_admin=True)
+
+
 @router.get("/patients")
 async def admin_patients_report_page(request: Request, db: Session = Depends(get_db)):
     return _render_admin_page(request, db, "admin/patients.html", "patients")

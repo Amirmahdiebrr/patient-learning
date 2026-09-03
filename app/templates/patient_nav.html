@@ -24,6 +24,9 @@
         <a href="/my-procedures" class="cl-sidebar-link {% if current_path in ['/my-procedures', '/my-surgery-education'] %}cl-sidebar-link-active{% endif %}" title="عمل جراحی">
             <span class="material-symbols-outlined" aria-hidden="true">medical_services</span><span class="cl-sidebar-link-text">عمل جراحی</span>
         </a>
+        <a href="/my-medications" class="cl-sidebar-link {% if current_path.startswith('/my-medications') or current_path.startswith('/medications') %}cl-sidebar-link-active{% endif %}" title="آموزش دارویی">
+            <span class="material-symbols-outlined" aria-hidden="true">medication</span><span class="cl-sidebar-link-text">آموزش دارویی</span>
+        </a>
         <a href="/profile" class="cl-sidebar-link {% if current_path == '/profile' %}cl-sidebar-link-active{% endif %}" title="پروفایل من">
             <span class="material-symbols-outlined" aria-hidden="true">account_circle</span><span class="cl-sidebar-link-text">پروفایل من</span>
         </a>
@@ -52,10 +55,6 @@
     var collapseBtn = document.getElementById("cl-sidebar-collapse-btn");
     if (!sidebar) return;
 
-    // Mobile off-canvas open/close - also toggles a body-level class
-    // so the fixed-position assistant widget (which lives outside
-    // the sidebar's own stacking context) can hide itself while the
-    // sidebar overlays the screen, instead of being covered by it.
     function closeMobileSidebar() {
         sidebar.classList.remove("cl-sidebar-open");
         document.body.classList.remove("cl-sidebar-is-open");
@@ -75,7 +74,6 @@
     }
     if (backdrop) backdrop.addEventListener("click", closeMobileSidebar);
 
-    // Desktop collapse (icon-only rail), persisted
     var STORAGE_KEY = "cl_sidebar_collapsed";
     function applyCollapsedState(collapsed) {
         sidebar.classList.toggle("cl-sidebar-collapsed", collapsed);

@@ -13,6 +13,7 @@ from app.infrastructure.db.models.content import (
     ContentTargetingRule, LessonOverrideLevel,
 )
 from app.infrastructure.db.models.procedure import Procedure
+from app.infrastructure.db.models.medication import Medication
 from app.infrastructure.db.models.patient_interaction import (
     ProgressRecord, LessonProgressStatus, FavoriteRecord, QuizAttempt, FeedbackRecord,
 )
@@ -30,7 +31,7 @@ __all__ = [
     "PatientAccessProfile", "StandardDepartmentType", "DepartmentMacroCategory",
     "Disease", "Treatment", "JourneyStage", "JourneyStageCode", "EducationSection",
     "Lesson", "MediaAsset", "MediaType", "QuizQuestion", "QuizOption",
-    "ContentTargetingRule", "LessonOverrideLevel", "Procedure",
+    "ContentTargetingRule", "LessonOverrideLevel", "Procedure", "Medication",
     "ProgressRecord", "LessonProgressStatus", "FavoriteRecord", "QuizAttempt", "FeedbackRecord",
     "PatientJourneyProfile", "PatientProcedureSelection", "PatientRegistration", "AuditLog",
     "FollowUpTask", "FollowUpChannel", "FollowUpStatus",
