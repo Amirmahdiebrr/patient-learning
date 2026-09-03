@@ -34,6 +34,7 @@ from app.api.v1.admin_hospitals import router as admin_hospitals_router
 from app.api.v1.admin_qr import router as admin_qr_router
 from app.api.v1.admin_content import router as admin_content_router
 from app.api.v1.admin_smart_import import router as admin_smart_import_router
+from app.api.v1.admin_content_export import router as admin_content_export_router
 from app.api.v1.admin_procedure_import import router as admin_procedure_import_router
 from app.api.v1.admin_lesson_draft import router as admin_lesson_draft_router
 from app.api.v1.admin_media_upload import router as admin_media_upload_router
@@ -70,6 +71,7 @@ ALL_ROUTERS = [
     assistant_router,
     admin_auth_router, admin_users_router,
     admin_hospitals_router, admin_qr_router, admin_content_router, admin_smart_import_router,
+    admin_content_export_router,
     admin_procedure_import_router,
     admin_lesson_draft_router,
     admin_media_upload_router, admin_patient_report_router, admin_audit_log_router,

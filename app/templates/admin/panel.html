@@ -49,6 +49,32 @@
     </div>
 
     <div class="cl-card cl-admin-card">
+        <h1>خروجی محتوا برای تحلیل هوش مصنوعی</h1>
+        <p class="cl-sub">تمام آموزش‌های ثبت‌شده (دروس + آزمون‌ها) را در یک یا چند فایل دانلود کن تا به یک هوش مصنوعی برای تحلیل کیفیت بدهی.</p>
+        <div class="cl-admin-row">
+            <div class="cl-field">
+                <label>فرمت خروجی</label>
+                <select id="export-format">
+                    <option value="markdown">Markdown (پیشنهادی برای AI)</option>
+                    <option value="json">JSON</option>
+                </select>
+            </div>
+            <div class="cl-field">
+                <label>تقسیم‌بندی فایل‌ها</label>
+                <select id="export-split">
+                    <option value="none">یک فایل کلی</option>
+                    <option value="stage">تفکیک بر اساس مرحله‌ی سفر بیمار</option>
+                    <option value="department">تفکیک بر اساس نوع بخش</option>
+                </select>
+            </div>
+        </div>
+        <label class="cl-admin-checkbox-label" style="margin-bottom:14px; display:flex;">
+            <input type="checkbox" id="export-include-drafts" checked> شامل دروس پیش‌نویس (منتشرنشده) هم باشد
+        </label>
+        <button id="export-content-btn" class="cl-btn cl-btn-sm">دانلود خروجی</button>
+    </div>
+
+    <div class="cl-card cl-admin-card">
         <h1>۱. ساخت محتوای آموزشی (کتابخانه‌ی مشترک)</h1>
         <p class="cl-sub">
             محتوا بر اساس «نوع بخش» ساخته می‌شود، نه بر اساس یک بیمارستان خاص.
@@ -821,6 +847,15 @@
             globalSearchResults.innerHTML = `<p class="cl-admin-empty">خطا: ${escapeHtml(err.message)}</p>`;
         }
     }
+
+    // ---------- Content export ----------
+
+    document.getElementById("export-content-btn").addEventListener("click", function () {
+        const format = document.getElementById("export-format").value;
+        const splitBy = document.getElementById("export-split").value;
+        const includeDrafts = document.getElementById("export-include-drafts").checked;
+        window.location.href = `/admin/content/export?format=${format}&split_by=${splitBy}&include_drafts=${includeDrafts}`;
+    });
 
     // ---------- Smart import (AI placement of already-written lessons) ----------
 
